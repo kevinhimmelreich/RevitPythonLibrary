@@ -779,3 +779,64 @@ def clasificar_habitaciones_por_estado():
         else:
             colocadas.append(r)
     return colocadas, no_colocadas, no_cerradas, redundantes
+
+
+# ── pandas (CPython 3.x / Dynamo 2.13+) ─────────────────────────────────────
+
+def dataframe_habitaciones(habitaciones):
+    """
+    Exporta datos de habitaciones Revit a un pandas DataFrame.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        habitaciones: lista de elementos Room de Revit
+
+    Returns:
+        pandas DataFrame con columnas [ElementId, Nombre, Numero,
+        Area_m2, Volumen_m3, Nivel], o None si pandas no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    filas = []
+    for hab in habitaciones:
+        try:
+            eid = int(hab.Id.Value)
+        except AttributeError:
+            eid = hab.Id.IntegerValue
+        p_nombre = (hab.LookupParameter("Nombre")
+                    or hab.LookupParameter("Name"))
+        nombre = p_nombre.AsString() if p_nombre else ""
+        filas.append({
+            "ElementId": eid,
+            "Nombre": nombre,
+            "Numero": hab.Number,
+            "Area_m2": round(hab.Area * 0.0929, 3),
+            "Volumen_m3": round(hab.Volume * 0.0283, 3),
+            "Nivel": hab.Level.Name if hab.Level else "",
+        })
+    return pd.DataFrame(filas)
+
+
+def estadisticas_habitaciones_pandas(habitaciones):
+    """
+    Calcula estadisticas descriptivas de areas y volumenes de habitaciones.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        habitaciones: lista de elementos Room de Revit
+
+    Returns:
+        pandas DataFrame con estadisticas de Area_m2 y Volumen_m3,
+        o None si pandas no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    df = dataframe_habitaciones(habitaciones)
+    if df is None:
+        return None
+    return df[["Area_m2", "Volumen_m3"]].describe()

@@ -595,3 +595,123 @@ def verificar_espacio_en_punto(punto_xyz):
         return doc.GetSpaceAtPoint(punto_xyz)
     except Exception:
         return None
+
+
+# ── pandas (CPython 3.x / Dynamo 2.13+) ─────────────────────────────────────
+
+def dataframe_tuberias(tuberias):
+    """
+    Exporta datos de tuberias Revit a un pandas DataFrame.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        tuberias: lista de elementos Pipe de Revit
+
+    Returns:
+        pandas DataFrame con columnas [ElementId, Sistema, Diametro_mm,
+        Longitud_m, Nivel], o None si pandas no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    filas = []
+    for tub in tuberias:
+        try:
+            eid = int(tub.Id.Value)
+        except AttributeError:
+            eid = tub.Id.IntegerValue
+        p_long = tub.LookupParameter("Longitud")
+        p_diam = tub.LookupParameter("Diametro exterior")
+        p_sist = tub.LookupParameter("Nombre del sistema")
+        p_niv = tub.LookupParameter("Nivel de referencia")
+        filas.append({
+            "ElementId": eid,
+            "Sistema": p_sist.AsString() if p_sist else "",
+            "Diametro_mm": round(
+                (p_diam.AsDouble() * 304.8) if p_diam else 0, 1
+            ),
+            "Longitud_m": round(
+                (p_long.AsDouble() * 0.3048) if p_long else 0, 3
+            ),
+            "Nivel": p_niv.AsValueString() if p_niv else "",
+        })
+    return pd.DataFrame(filas)
+
+
+def dataframe_conductos(conductos):
+    """
+    Exporta datos de conductos de ventilacion a un pandas DataFrame.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        conductos: lista de elementos Duct de Revit
+
+    Returns:
+        pandas DataFrame con columnas [ElementId, Sistema, Longitud_m,
+        Nivel], o None si pandas no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    filas = []
+    for duc in conductos:
+        try:
+            eid = int(duc.Id.Value)
+        except AttributeError:
+            eid = duc.Id.IntegerValue
+        p_long = duc.LookupParameter("Longitud")
+        p_sist = duc.LookupParameter("Nombre del sistema")
+        p_niv = duc.LookupParameter("Nivel de referencia")
+        filas.append({
+            "ElementId": eid,
+            "Sistema": p_sist.AsString() if p_sist else "",
+            "Longitud_m": round(
+                (p_long.AsDouble() * 0.3048) if p_long else 0, 3
+            ),
+            "Nivel": p_niv.AsValueString() if p_niv else "",
+        })
+    return pd.DataFrame(filas)
+
+
+def estadisticas_sistemas_pandas(tuberias=None, conductos=None):
+    """
+    Calcula estadisticas de longitud agrupadas por sistema para
+    tuberias y/o conductos. Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        tuberias: lista de Pipe (opcional)
+        conductos: lista de Duct (opcional)
+
+    Returns:
+        dict con DataFrames de estadisticas por tipo MEP,
+        o None si pandas no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas  # noqa: F401 — solo comprueba disponibilidad
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    resultado = {}
+    if tuberias:
+        df = dataframe_tuberias(tuberias)
+        if df is not None:
+            resultado["tuberias"] = (
+                df.groupby("Sistema")["Longitud_m"].describe()
+            )
+    if conductos:
+        df = dataframe_conductos(conductos)
+        if df is not None:
+            resultado["conductos"] = (
+                df.groupby("Sistema")["Longitud_m"].describe()
+            )
+    return resultado

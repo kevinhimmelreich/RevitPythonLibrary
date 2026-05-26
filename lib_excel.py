@@ -352,10 +352,97 @@ def exportar_schedule_a_excel(nombre_schedule, ruta_salida, nombre_hoja="Schedul
     if sch is None:
         return None
     seccion = sch.GetTableData().GetSectionData(SectionType.Body)
-    filas   = []
+    filas = []
     for row in range(seccion.NumberOfRows):
         filas.append([
             sch.GetCellText(SectionType.Body, row, col)
             for col in range(seccion.NumberOfColumns)
         ])
     return escribir_excel_dsoffice(ruta_salida, nombre_hoja, filas)
+
+
+# ── pandas (CPython 3.x / Dynamo 2.13+) ──────────────────────────────────────
+
+def leer_excel_pandas(ruta, nombre_hoja=0):
+    """
+    Lee un archivo Excel a un pandas DataFrame.
+    Requiere CPython 3.x (Dynamo 2.13+) y openpyxl.
+
+    Args:
+        ruta: ruta completa al archivo .xlsx
+        nombre_hoja: nombre o indice de la hoja (por defecto 0)
+
+    Returns:
+        pandas DataFrame, o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    return pd.read_excel(ruta, sheet_name=nombre_hoja)
+
+
+def escribir_excel_pandas(df, ruta, nombre_hoja="Datos", indice=False):
+    """
+    Exporta un pandas DataFrame a un archivo Excel (.xlsx).
+    Requiere CPython 3.x (Dynamo 2.13+) y openpyxl.
+
+    Args:
+        df: pandas DataFrame a exportar
+        ruta: ruta completa al archivo .xlsx de salida
+        nombre_hoja: nombre de la hoja de destino (por defecto "Datos")
+        indice: si True incluye el indice del DataFrame como columna
+
+    Returns:
+        ruta del archivo creado, o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas  # noqa: F401 — solo comprueba disponibilidad
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    df.to_excel(ruta, sheet_name=nombre_hoja, index=indice)
+    return ruta
+
+
+def exportar_parametros_a_dataframe(elementos, nombres_params):
+    """
+    Exporta parametros de elementos Revit a un pandas DataFrame.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        elementos: lista de elementos Revit
+        nombres_params: lista de nombres de parametros a incluir
+
+    Returns:
+        pandas DataFrame con columnas [ElementId, UniqueId, Categoria,
+        *nombres_params], o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    filas = []
+    for elem in elementos:
+        try:
+            eid = int(elem.Id.Value)
+        except AttributeError:
+            eid = elem.Id.IntegerValue
+        fila = {
+            "ElementId": eid,
+            "UniqueId": elem.UniqueId,
+            "Categoria": elem.Category.Name if elem.Category else "",
+        }
+        for nombre in nombres_params:
+            param = elem.LookupParameter(nombre)
+            fila[nombre] = _obtener_valor_param(param)
+        filas.append(fila)
+    return pd.DataFrame(filas)

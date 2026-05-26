@@ -801,3 +801,121 @@ def superficie_reglada_por_curvas(curva_inf, curva_sup):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     return RuledSurface.Create(curva_inf, curva_sup)
+
+
+# ── numpy (CPython 3.x / Dynamo 2.13+) ──────────────────────────────────────
+
+def puntos_a_array_numpy(puntos_xyz):
+    """
+    Convierte una lista de XYZ de Revit a un array numpy (N, 3) en metros.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        puntos_xyz: lista de Autodesk.Revit.DB.XYZ
+
+    Returns:
+        numpy array de shape (N, 3), o None si numpy no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        print("numpy no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    return np.array(
+        [[p.X * 0.3048, p.Y * 0.3048, p.Z * 0.3048] for p in puntos_xyz]
+    )
+
+
+def calcular_centroide_numpy(puntos_xyz):
+    """
+    Calcula el centroide de una nube de puntos XYZ usando numpy.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        puntos_xyz: lista de Autodesk.Revit.DB.XYZ
+
+    Returns:
+        numpy array [cx, cy, cz] en metros, o None si numpy no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    arr = puntos_a_array_numpy(puntos_xyz)
+    if arr is None:
+        return None
+    return arr.mean(axis=0)
+
+
+def distancias_entre_puntos_numpy(puntos_xyz):
+    """
+    Calcula la matriz de distancias entre todos los puntos de la lista.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        puntos_xyz: lista de Autodesk.Revit.DB.XYZ
+
+    Returns:
+        numpy array (N, N) con distancias en metros,
+        o None si numpy no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        print("numpy no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    arr = puntos_a_array_numpy(puntos_xyz)
+    if arr is None:
+        return None
+    diff = arr[:, np.newaxis, :] - arr[np.newaxis, :, :]
+    return np.sqrt((diff ** 2).sum(axis=-1))
+
+
+def bbox_desde_numpy(puntos_xyz):
+    """
+    Calcula el bounding box (min/max XYZ) de una nube de puntos.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        puntos_xyz: lista de Autodesk.Revit.DB.XYZ
+
+    Returns:
+        tupla (min_xyz, max_xyz) como arrays numpy en metros,
+        o None si numpy no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    arr = puntos_a_array_numpy(puntos_xyz)
+    if arr is None:
+        return None
+    return arr.min(axis=0), arr.max(axis=0)
+
+
+def ajuste_plano_numpy(puntos_xyz):
+    """
+    Ajusta un plano a una nube de puntos mediante SVD (minimos cuadrados).
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        puntos_xyz: lista de Autodesk.Revit.DB.XYZ (minimo 3 puntos)
+
+    Returns:
+        tupla (centroide, normal) como arrays numpy,
+        o None si numpy no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        print("numpy no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+    arr = puntos_a_array_numpy(puntos_xyz)
+    if arr is None:
+        return None
+    centroide = arr.mean(axis=0)
+    _, _, Vt = np.linalg.svd(arr - centroide)
+    normal = Vt[-1]
+    return centroide, normal

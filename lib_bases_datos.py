@@ -20,26 +20,26 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
 clr.AddReference("RevitNodes")
 
-from System.IO import Path
-from Autodesk.Revit.DB import (
+from System.IO import Path  # noqa: E402
+from Autodesk.Revit.DB import (  # noqa: E402
     FilteredElementCollector, ElementId, ViewSchedule, SectionType,
     IFCExportOptions, StorageType
 )
-from RevitServices.Persistence import DocumentManager
-from RevitServices.Transactions import TransactionManager
+from RevitServices.Persistence import DocumentManager  # noqa: E402
+from RevitServices.Transactions import TransactionManager  # noqa: E402
 
-import Revit
+import Revit  # noqa: E402
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -47,6 +47,7 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
@@ -74,7 +75,7 @@ def _obtener_valor_param(param):
     return None
 
 
-# ── JSON ──────────────────────────────────────────────────────────────────────
+# ── JSON ─────────────────────────────────────────────────────────────────────
 
 def leer_json(ruta):
     """
@@ -110,7 +111,7 @@ def escribir_json(ruta, datos):
     return ruta
 
 
-# ── CSV ───────────────────────────────────────────────────────────────────────
+# ── CSV ──────────────────────────────────────────────────────────────────────
 
 def leer_csv(ruta, separador=";"):
     """
@@ -130,7 +131,11 @@ def leer_csv(ruta, separador=";"):
     if not lineas:
         return []
     cabeceras = lineas[0].strip().split(separador)
-    return [dict(zip(cabeceras, l.strip().split(separador))) for l in lineas[1:] if l.strip()]
+    return [
+        dict(zip(cabeceras, linea.strip().split(separador)))
+        for linea in lineas[1:]
+        if linea.strip()
+    ]
 
 
 def escribir_csv(ruta, filas, encabezados=None, separador=";"):
@@ -140,7 +145,8 @@ def escribir_csv(ruta, filas, encabezados=None, separador=";"):
     Args:
         ruta: ruta completa al archivo .csv de salida
         filas: lista de dicts o lista de listas con los datos
-        encabezados: lista de nombres de columnas (si None los infiere del primer dict)
+        encabezados: lista de nombres de columnas (si None los infiere
+                     del primer dict)
         separador: caracter separador (por defecto ";")
 
     Returns:
@@ -165,7 +171,7 @@ def escribir_csv(ruta, filas, encabezados=None, separador=";"):
     return ruta
 
 
-# ── Parametros Revit ↔ JSON ───────────────────────────────────────────────────
+# ── Parametros Revit / JSON ──────────────────────────────────────────────────
 
 def exportar_parametros_elementos(elementos, parametros, ruta_archivo):
     """
@@ -185,7 +191,7 @@ def exportar_parametros_elementos(elementos, parametros, ruta_archivo):
     for elem in elementos:
         fila = {
             "ElementId": _id_a_int(elem.Id),
-            "UniqueId":  elem.UniqueId,
+            "UniqueId": elem.UniqueId,
             "Categoria": elem.Category.Name if elem.Category else "",
         }
         for p in parametros:
@@ -197,7 +203,8 @@ def exportar_parametros_elementos(elementos, parametros, ruta_archivo):
 
 def importar_parametros_desde_json(ruta_archivo):
     """
-    Lee un JSON exportado con exportar_parametros_elementos y aplica los valores a los elementos.
+    Lee un JSON de exportar_parametros_elementos y aplica valores
+    a los elementos del modelo.
 
     Args:
         ruta_archivo: ruta completa al archivo .json
@@ -235,7 +242,7 @@ def importar_parametros_desde_json(ruta_archivo):
     return resultados
 
 
-# ── IFC ───────────────────────────────────────────────────────────────────────
+# ── IFC ──────────────────────────────────────────────────────────────────────
 
 def exportar_ifc(ruta_ifc, opciones=None):
     """
@@ -253,12 +260,12 @@ def exportar_ifc(ruta_ifc, opciones=None):
     if opciones is None:
         opciones = IFCExportOptions()
     directorio = Path.GetDirectoryName(ruta_ifc)
-    nombre     = Path.GetFileName(ruta_ifc)
+    nombre = Path.GetFileName(ruta_ifc)
     doc.Export(directorio, nombre, opciones)
     return ruta_ifc
 
 
-# ── Schedules → CSV ──────────────────────────────────────────────────────────
+# ── Schedules / CSV ──────────────────────────────────────────────────────────
 
 def exportar_schedule_a_csv(nombre_schedule, ruta_archivo, separador=";"):
     """
@@ -274,15 +281,18 @@ def exportar_schedule_a_csv(nombre_schedule, ruta_archivo, separador=";"):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    schedules = list(FilteredElementCollector(doc).OfClass(ViewSchedule).ToElements())
+    colector = FilteredElementCollector(doc).OfClass(ViewSchedule)
+    schedules = list(colector.ToElements())
     sch = next((s for s in schedules if s.Name == nombre_schedule), None)
     if sch is None:
         return None
     seccion = sch.GetTableData().GetSectionData(SectionType.Body)
-    filas   = []
+    filas = []
     for row in range(seccion.NumberOfRows):
-        fila = [sch.GetCellText(SectionType.Body, row, col)
-                for col in range(seccion.NumberOfColumns)]
+        fila = [
+            sch.GetCellText(SectionType.Body, row, col)
+            for col in range(seccion.NumberOfColumns)
+        ]
         filas.append(fila)
     if len(filas) < 1:
         return None
@@ -302,10 +312,11 @@ def listar_schedules():
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return [s.Name for s in FilteredElementCollector(doc).OfClass(ViewSchedule).ToElements()]
+    colector = FilteredElementCollector(doc).OfClass(ViewSchedule)
+    return [s.Name for s in colector.ToElements()]
 
 
-# ── GUIDs ─────────────────────────────────────────────────────────────────────
+# ── GUIDs ────────────────────────────────────────────────────────────────────
 
 def obtener_guid_elemento(elemento):
     """
@@ -337,7 +348,7 @@ def obtener_elemento_por_guid(guid_str):
     return doc.GetElement(guid_str)
 
 
-# ── Configuracion ─────────────────────────────────────────────────────────────
+# ── Configuracion ────────────────────────────────────────────────────────────
 
 def guardar_configuracion(configuracion, ruta_archivo):
     """
@@ -368,3 +379,198 @@ def cargar_configuracion(ruta_archivo):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     return leer_json(ruta_archivo)
+
+
+# ── pandas (CPython 3.x / Dynamo 2.13+) ──────────────────────────────────────
+
+def exportar_a_dataframe(elementos, parametros):
+    """
+    Exporta parametros de elementos Revit a un pandas DataFrame.
+    Requiere CPython 3.x (Dynamo 2.13+). En IronPython retorna None con aviso.
+
+    Args:
+        elementos: lista de elementos Revit
+        parametros: lista de nombres de parametros a incluir como columnas
+
+    Returns:
+        pandas DataFrame con columnas [ElementId, UniqueId, Categoria,
+        *parametros], o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+
+    filas = []
+    for elem in elementos:
+        try:
+            eid = int(elem.Id.Value)
+        except AttributeError:
+            eid = elem.Id.IntegerValue
+        fila = {
+            "ElementId": eid,
+            "UniqueId": elem.UniqueId,
+            "Categoria": elem.Category.Name if elem.Category else "",
+        }
+        for nombre in parametros:
+            fila[nombre] = _obtener_valor_param(elem.LookupParameter(nombre))
+        filas.append(fila)
+    return pd.DataFrame(filas)
+
+
+def importar_desde_dataframe(df, col_id="ElementId"):
+    """
+    Aplica valores de un pandas DataFrame a los elementos Revit por ElementId.
+    Las columnas ElementId, UniqueId y Categoria se omiten automaticamente.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        df: pandas DataFrame con columna de ID y columnas de parametros
+        col_id: nombre de la columna que contiene el ElementId
+                (por defecto "ElementId")
+
+    Returns:
+        diccionario {ok: [ids], error: [ids]}
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+
+    columnas_ignorar = {col_id, "UniqueId", "Categoria"}
+    cols_param = [c for c in df.columns if c not in columnas_ignorar]
+    resultados = {"ok": [], "error": []}
+
+    _iniciar("Importar desde DataFrame")
+    for _, fila in df.iterrows():
+        try:
+            elem = doc.GetElement(ElementId(int(fila[col_id])))
+            if elem is None:
+                resultados["error"].append(fila[col_id])
+                continue
+            for col in cols_param:
+                valor = fila[col]
+                if pd.isna(valor):
+                    continue
+                param = elem.LookupParameter(col)
+                if param and not param.IsReadOnly:
+                    t = param.StorageType
+                    if t == StorageType.String:
+                        param.Set(str(valor))
+                    elif t == StorageType.Integer:
+                        param.Set(int(valor))
+                    elif t == StorageType.Double:
+                        param.Set(float(valor))
+            resultados["ok"].append(int(fila[col_id]))
+        except Exception as e:
+            resultados["error"].append(str(e))
+    _finalizar()
+    return resultados
+
+
+def estadisticas_dataframe(df, columnas_numericas=None):
+    """
+    Calcula estadisticas descriptivas de columnas numericas de un DataFrame.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        df: pandas DataFrame
+        columnas_numericas: lista de nombres de columnas a analizar
+                            (si None analiza todas las numericas)
+
+    Returns:
+        pandas DataFrame con estadisticas (count, mean, std, min,
+        max, percentiles), o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas  # noqa: F401 — solo comprueba disponibilidad
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+
+    if columnas_numericas:
+        return df[columnas_numericas].describe()
+    return df.select_dtypes(include="number").describe()
+
+
+def agrupar_dataframe(df, col_grupo, col_valor, operacion="sum"):
+    """
+    Agrupa un DataFrame por una columna y aplica una operacion de agregacion.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        df: pandas DataFrame
+        col_grupo: nombre de la columna de agrupacion (ej. "Categoria")
+        col_valor: nombre de la columna numerica a agregar
+        operacion: "sum", "mean", "count", "min", "max" (por defecto "sum")
+
+    Returns:
+        pandas Series con el resultado de la agregacion,
+        o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas  # noqa: F401 — solo comprueba disponibilidad
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+
+    return getattr(df.groupby(col_grupo)[col_valor], operacion)()
+
+
+def exportar_dataframe_a_csv(df, ruta, separador=";", indice=False):
+    """
+    Exporta un pandas DataFrame a CSV con encoding UTF-8.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        df: pandas DataFrame a exportar
+        ruta: ruta completa al archivo .csv de salida
+        separador: caracter separador (por defecto ";")
+        indice: si True incluye el indice del DataFrame como columna
+
+    Returns:
+        ruta del archivo creado, o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas  # noqa: F401 — solo comprueba disponibilidad
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+
+    df.to_csv(ruta, sep=separador, encoding="utf-8", index=indice)
+    return ruta
+
+
+def leer_csv_pandas(ruta, separador=";"):
+    """
+    Lee un archivo CSV a un pandas DataFrame con encoding UTF-8.
+    Requiere CPython 3.x (Dynamo 2.13+).
+
+    Args:
+        ruta: ruta completa al archivo .csv
+        separador: caracter separador (por defecto ";")
+
+    Returns:
+        pandas DataFrame, o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+        return None
+
+    return pd.read_csv(ruta, sep=separador, encoding="utf-8")
