@@ -73,4 +73,4 @@ Los `ElementId` se convierten con la funcion `id_a_int()` que soporta `.Value` (
 
 ## Licencia
 
-MIT — uso libre con atribucion a Kevin Himmelreich / ASCH Infraestructuras.
+MIT — uso libre con atribucion a Kevin Himmelreich
