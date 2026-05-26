@@ -4,10 +4,11 @@ lib_scientific.py
 Integracion Revit API <-> Python cientifico
 pandas, numpy, scipy, matplotlib, shapely, networkx
 Compatible: CPython 3.x (Dynamo 2.13+) | Revit 2024-2026
-NOTA: IronPython 2.7 no soporta estas bibliotecas. Todas las funciones
-retornan None con aviso si la biblioteca no esta disponible.
+NOTA: IronPython 2.7 no soporta estas bibliotecas. En IronPython todas
+las funciones devuelven None con un aviso. En CPython, si una biblioteca
+no esta instalada, se instala automaticamente via pip al llamar la funcion.
 Las funciones matplotlib retornan System.Drawing.Bitmap directamente
-usable en Dynamo, o guardan a PNG si se especifica ruta_png.
+usable en Dynamo (Watch Image), o guardan a PNG si se pasa ruta_png.
 Repositorio: https://github.com/kevinhimmelreich/RevitPythonLibrary
 """
 
@@ -88,15 +89,83 @@ def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
 
 
-def _no_disponible(lib):
-    print(lib + " no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+def _asegurar(paquete, nombre_import=None):
+    """
+    Comprueba si un paquete Python esta disponible e intenta instalarlo
+    automaticamente via pip si no lo esta.
+    Solo funciona en CPython 3.x (Dynamo 2.13+); en IronPython 2.7
+    devuelve False directamente.
 
+    Args:
+        paquete: nombre del paquete para pip (ej. "Pillow", "scipy")
+        nombre_import: nombre del modulo para import cuando difiere
+                       del nombre pip (ej. "PIL" para "Pillow").
+                       Si None se usa paquete.
+
+    Returns:
+        True si el paquete esta disponible o se instalo correctamente,
+        False en caso contrario.
+    """
+    nombre_import = nombre_import or paquete
+    try:
+        __import__(nombre_import)
+        return True
+    except ImportError:
+        pass
+    if not PY3:
+        print(paquete + " no disponible en IronPython 2.7.")
+        return False
+    import subprocess
+    print("Instalando " + paquete + " via pip...")
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", paquete],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=120
+        )
+        __import__(nombre_import)
+        print(paquete + " instalado correctamente.")
+        return True
+    except Exception as exc:
+        print("Error instalando " + paquete + ": " + str(exc))
+        return False
+
+
+def instalar_dependencias_scientific():
+    """
+    Instala todas las dependencias de lib_scientific usando pip.
+    Llamar una vez al inicio en un entorno nuevo (CPython 3.x / Dynamo).
+    En IronPython 2.7 no hace nada.
+
+    Returns:
+        dict {paquete: bool} indicando si cada paquete esta disponible
+
+    Ejemplo en Dynamo:
+        from lib_scientific import instalar_dependencias_scientific
+        OUT = [instalar_dependencias_scientific()]
+        # {"numpy": True, "pandas": True, "scipy": True, ...}
+    """
+    dependencias = [
+        ("numpy",      "numpy"),
+        ("pandas",     "pandas"),
+        ("scipy",      "scipy"),
+        ("matplotlib", "matplotlib"),
+        ("shapely",    "shapely"),
+        ("networkx",   "networkx"),
+        ("Pillow",     "PIL"),
+    ]
+    return {pkg: _asegurar(pkg, imp) for pkg, imp in dependencias}
+
+
+# ── matplotlib: conversion a Bitmap para Dynamo ──────────────────────────────
 
 def figura_a_bitmap(fig):
     """
     Convierte una figura matplotlib a System.Drawing.Bitmap para
     visualizarla directamente en un nodo Watch Image de Dynamo.
     Basado en el patron plt2arr + convertToBitmap2 de Dynamo Python.
+    Pillow y numpy se instalan automaticamente si no estan presentes.
 
     Args:
         fig: figura matplotlib (matplotlib.figure.Figure)
@@ -104,19 +173,21 @@ def figura_a_bitmap(fig):
     Returns:
         System.Drawing.Bitmap, o None si faltan dependencias
 
-    Requiere: CPython 3.x (Dynamo 2.13+), PIL/Pillow, numpy
+    Requiere: CPython 3.x (Dynamo 2.13+), Pillow, numpy
     """
+    if not _asegurar("numpy") or not _asegurar("Pillow", "PIL"):
+        return None
     try:
-        import numpy as np
-        import io as _io
-        import PIL.Image
         import System
         clr.AddReference("System.Drawing")
         from System.Drawing import Bitmap
         from System.IO import MemoryStream
-    except ImportError:
-        _no_disponible("PIL / System.Drawing")
+    except Exception:
+        print("System.Drawing no disponible (solo Dynamo / .NET).")
         return None
+    import numpy as np
+    import io as _io
+    import PIL.Image
     fig.canvas.draw()
     rgba = fig.canvas.buffer_rgba()
     w, h = fig.canvas.get_width_height()
@@ -151,6 +222,7 @@ def elementos_a_dataframe(elementos, parametros):
     """
     Exporta parametros de cualquier lista de elementos Revit a un
     pandas DataFrame. Base para cualquier analisis de datos del modelo.
+    pandas se instala automaticamente si no esta disponible.
 
     Args:
         elementos: lista de elementos Revit
@@ -162,11 +234,9 @@ def elementos_a_dataframe(elementos, parametros):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import pandas as pd
-    except ImportError:
-        _no_disponible("pandas")
+    if not _asegurar("pandas"):
         return None
+    import pandas as pd
     filas = []
     for elem in elementos:
         try:
@@ -205,11 +275,9 @@ def dataframe_a_parametros(df, col_id="ElementId", cols_ignorar=None):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import pandas as pd
-    except ImportError:
-        _no_disponible("pandas")
+    if not _asegurar("pandas"):
         return None
+    import pandas as pd
     ignorar = {"ElementId", "Categoria", "Nivel", col_id}
     if cols_ignorar:
         ignorar.update(cols_ignorar)
@@ -255,11 +323,9 @@ def schedule_a_dataframe(nombre_schedule):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import pandas as pd
-    except ImportError:
-        _no_disponible("pandas")
+    if not _asegurar("pandas"):
         return None
+    import pandas as pd
     colector = FilteredElementCollector(doc).OfClass(ViewSchedule)
     sch = next(
         (s for s in colector.ToElements()
@@ -307,6 +373,7 @@ def analisis_calidad_datos(elementos, parametros_requeridos):
 def xyz_a_numpy(puntos_xyz):
     """
     Convierte una lista de XYZ de Revit a un array numpy (N, 3) en metros.
+    numpy se instala automaticamente si no esta disponible.
 
     Args:
         puntos_xyz: lista de Autodesk.Revit.DB.XYZ
@@ -316,11 +383,9 @@ def xyz_a_numpy(puntos_xyz):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import numpy as np
-    except ImportError:
-        _no_disponible("numpy")
+    if not _asegurar("numpy"):
         return None
+    import numpy as np
     return np.array(
         [[_pies_a_m(p.X), _pies_a_m(p.Y), _pies_a_m(p.Z)]
          for p in puntos_xyz]
@@ -340,10 +405,7 @@ def numpy_a_xyz(arr_metros):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import numpy  # noqa: F401
-    except ImportError:
-        _no_disponible("numpy")
+    if not _asegurar("numpy"):
         return None
     return [
         XYZ(_m_a_pies(float(row[0])),
@@ -366,11 +428,9 @@ def posiciones_elementos_numpy(elementos):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import numpy as np
-    except ImportError:
-        _no_disponible("numpy")
+    if not _asegurar("numpy"):
         return None
+    import numpy as np
     puntos = []
     for elem in elementos:
         loc = elem.Location
@@ -412,6 +472,7 @@ def clustering_por_posicion(elementos, n_grupos):
     """
     Agrupa elementos por proximidad espacial usando K-Means (scipy).
     Util para zonar automaticamente elementos por area o planta.
+    scipy se instala automaticamente si no esta disponible.
 
     Args:
         elementos: lista de elementos Revit con LocationPoint
@@ -423,11 +484,9 @@ def clustering_por_posicion(elementos, n_grupos):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        from scipy.cluster.vq import kmeans2
-    except ImportError:
-        _no_disponible("scipy")
+    if not _asegurar("scipy"):
         return None
+    from scipy.cluster.vq import kmeans2
     arr = posiciones_elementos_numpy(elementos)
     if arr is None or len(arr) < n_grupos:
         return None
@@ -464,12 +523,10 @@ def clustering_por_parametros(elementos, nombres_params, n_grupos):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        from scipy.cluster.vq import kmeans2
-        import numpy as np
-    except ImportError:
-        _no_disponible("scipy / numpy")
+    if not _asegurar("scipy") or not _asegurar("numpy"):
         return None
+    from scipy.cluster.vq import kmeans2
+    import numpy as np
     filas = []
     validos = []
     for elem in elementos:
@@ -501,6 +558,7 @@ def vecinos_por_radio(elementos, radio_m):
     Para cada elemento devuelve los elementos vecinos dentro de un radio.
     Usa un KD-Tree (scipy) para busqueda eficiente en 2D (planta).
     Util para detectar conflictos de espacio o proximidad entre MEP.
+    scipy se instala automaticamente si no esta disponible.
 
     Args:
         elementos: lista de elementos Revit con LocationPoint
@@ -511,11 +569,9 @@ def vecinos_por_radio(elementos, radio_m):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        from scipy.spatial import KDTree
-    except ImportError:
-        _no_disponible("scipy")
+    if not _asegurar("scipy"):
         return None
+    from scipy.spatial import KDTree
     arr = posiciones_elementos_numpy(elementos)
     if arr is None or len(arr) == 0:
         return None
@@ -546,12 +602,10 @@ def interpolacion_parametro(
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        from scipy.interpolate import interp1d
-        import numpy as np
-    except ImportError:
-        _no_disponible("scipy / numpy")
+    if not _asegurar("scipy") or not _asegurar("numpy"):
         return None
+    from scipy.interpolate import interp1d
+    import numpy as np
     xs, ys = [], []
     for elem in elementos:
         px = elem.LookupParameter(param_eje_x)
@@ -600,6 +654,7 @@ def grafico_parametro_por_nivel(
     """
     Grafico de barras con el valor medio de un parametro numerico
     agrupado por nivel de Revit.
+    matplotlib y pandas se instalan automaticamente si no estan presentes.
 
     Args:
         elementos: lista de elementos Revit
@@ -613,14 +668,12 @@ def grafico_parametro_por_nivel(
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import pandas as pd
-    except ImportError:
-        _no_disponible("matplotlib / pandas")
+    if not _asegurar("matplotlib") or not _asegurar("pandas"):
         return None
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import pandas as pd
     df = elementos_a_dataframe(elementos, [nombre_param])
     if df is None or nombre_param not in df.columns:
         return None
@@ -647,6 +700,7 @@ def histograma_parametro(
     """
     Histograma de la distribucion de valores de un parametro numerico.
     Util para detectar outliers o verificar uniformidad del modelo.
+    matplotlib y pandas se instalan automaticamente si no estan presentes.
 
     Args:
         elementos: lista de elementos Revit
@@ -661,14 +715,12 @@ def histograma_parametro(
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import pandas as pd
-    except ImportError:
-        _no_disponible("matplotlib / pandas")
+    if not _asegurar("matplotlib") or not _asegurar("pandas"):
         return None
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import pandas as pd
     df = elementos_a_dataframe(elementos, [nombre_param])
     if df is None:
         return None
@@ -691,6 +743,7 @@ def grafico_dispersion(
     """
     Grafico de dispersion (scatter) entre dos parametros numericos.
     Permite detectar correlaciones entre propiedades de elementos Revit.
+    matplotlib y pandas se instalan automaticamente si no estan presentes.
 
     Args:
         elementos: lista de elementos Revit
@@ -704,14 +757,12 @@ def grafico_dispersion(
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import pandas as pd
-    except ImportError:
-        _no_disponible("matplotlib / pandas")
+    if not _asegurar("matplotlib") or not _asegurar("pandas"):
         return None
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import pandas as pd
     df = elementos_a_dataframe(elementos, [param_x, param_y])
     if df is None:
         return None
@@ -734,6 +785,7 @@ def grafico_suma_por_categoria(
     Grafico de sectores (pie) con la suma de un parametro numerico
     agrupada por categoria de elemento Revit. Util para reportes de
     cantidades (m2 por categoria, longitud MEP por sistema, etc.).
+    matplotlib y pandas se instalan automaticamente si no estan presentes.
 
     Args:
         elementos: lista de elementos Revit
@@ -746,14 +798,12 @@ def grafico_suma_por_categoria(
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import pandas as pd
-    except ImportError:
-        _no_disponible("matplotlib / pandas")
+    if not _asegurar("matplotlib") or not _asegurar("pandas"):
         return None
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import pandas as pd
     df = elementos_a_dataframe(elementos, [nombre_param])
     if df is None:
         return None
@@ -794,14 +844,12 @@ def scatter_elementos_coloreados(
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import pandas as pd
-    except ImportError:
-        _no_disponible("matplotlib / pandas")
+    if not _asegurar("matplotlib") or not _asegurar("pandas"):
         return None
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import pandas as pd
     cols = [param_x, param_y]
     if param_color:
         cols.append(param_color)
@@ -842,6 +890,7 @@ def mapa_calor_planta(
 
     Ideal para representar areas, ocupacion, temperatura, iluminacion
     u otros KPI directamente sobre la planta del edificio.
+    matplotlib, numpy y shapely se instalan automaticamente si faltan.
 
     Args:
         habitaciones: lista de Room de Revit
@@ -855,22 +904,17 @@ def mapa_calor_planta(
 
     Requiere: CPython 3.x (Dynamo 2.13+), shapely, matplotlib
     """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import matplotlib.colors as mcolors
-        from matplotlib.patches import Polygon as MplPoly
-        from matplotlib.collections import PatchCollection
-        import numpy as np
-    except ImportError:
-        _no_disponible("matplotlib / numpy")
+    if (not _asegurar("matplotlib")
+            or not _asegurar("numpy")
+            or not _asegurar("shapely")):
         return None
-    try:
-        from shapely.geometry import Polygon  # noqa: F401
-    except ImportError:
-        _no_disponible("shapely")
-        return None
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
+    from matplotlib.patches import Polygon as MplPoly
+    from matplotlib.collections import PatchCollection
+    import numpy as np
 
     patches = []
     valores = []
@@ -913,6 +957,7 @@ def curvas_a_shapely(curvas_revit):
     """
     Convierte una lista de curvas de Revit a un Polygon de Shapely.
     Las curvas deben formar un contorno cerrado en planta (2D).
+    shapely se instala automaticamente si no esta disponible.
 
     Args:
         curvas_revit: lista de Curve de Revit (contorno cerrado)
@@ -922,11 +967,9 @@ def curvas_a_shapely(curvas_revit):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        from shapely.geometry import Polygon
-    except ImportError:
-        _no_disponible("shapely")
+    if not _asegurar("shapely"):
         return None
+    from shapely.geometry import Polygon
     puntos = []
     for curva in curvas_revit:
         p = curva.GetEndPoint(0)
@@ -938,6 +981,7 @@ def habitacion_a_shapely(habitacion):
     """
     Convierte una habitacion (Room) de Revit en un Polygon de Shapely.
     Usa el primer bucle de contorno de la habitacion.
+    shapely se instala automaticamente si no esta disponible.
 
     Args:
         habitacion: elemento Room de Revit
@@ -947,11 +991,9 @@ def habitacion_a_shapely(habitacion):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        from shapely.geometry import Polygon
-    except ImportError:
-        _no_disponible("shapely")
+    if not _asegurar("shapely"):
         return None
+    from shapely.geometry import Polygon
     opts = SpatialElementBoundaryOptions()
     segmentos = habitacion.GetBoundarySegments(opts)
     if not segmentos:
@@ -969,6 +1011,7 @@ def detectar_solapamientos(habitaciones):
     """
     Detecta pares de habitaciones cuyos contornos se solapan en planta.
     Util para validar separacion de espacios en el modelo.
+    shapely se instala automaticamente si no esta disponible.
 
     Args:
         habitaciones: lista de Room de Revit
@@ -978,10 +1021,7 @@ def detectar_solapamientos(habitaciones):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        from shapely.geometry import Polygon  # noqa: F401
-    except ImportError:
-        _no_disponible("shapely")
+    if not _asegurar("shapely"):
         return None
     poligonos = []
     for hab in habitaciones:
@@ -1029,6 +1069,7 @@ def sistema_mep_a_grafo(elementos_mep):
     Construye un grafo NetworkX a partir de elementos MEP conectados
     (conductos, tuberias, bandejas de cable). Los nodos son ElementId
     enteros y las aristas representan conexiones fisicas entre ellos.
+    networkx se instala automaticamente si no esta disponible.
 
     Args:
         elementos_mep: lista de elementos MEP de Revit
@@ -1038,11 +1079,9 @@ def sistema_mep_a_grafo(elementos_mep):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import networkx as nx
-    except ImportError:
-        _no_disponible("networkx")
+    if not _asegurar("networkx"):
         return None
+    import networkx as nx
     grafo = nx.Graph()
     for elem in elementos_mep:
         eid = _id_int(elem.Id)
@@ -1093,11 +1132,9 @@ def analisis_red_mep(grafo):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import networkx as nx
-    except ImportError:
-        _no_disponible("networkx")
+    if not _asegurar("networkx"):
         return None
+    import networkx as nx
     grados = [d for _, d in grafo.degree()]
     return {
         "nodos": grafo.number_of_nodes(),
@@ -1127,11 +1164,9 @@ def ruta_mas_corta_mep(grafo, id_inicio, id_fin):
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
-    try:
-        import networkx as nx
-    except ImportError:
-        _no_disponible("networkx")
+    if not _asegurar("networkx"):
         return None
+    import networkx as nx
     try:
         return nx.shortest_path(grafo, id_inicio, id_fin)
     except (nx.NetworkXNoPath, nx.NodeNotFound):
