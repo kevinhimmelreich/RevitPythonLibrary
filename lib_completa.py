@@ -7,21 +7,22 @@ Repositorio: https://github.com/kevinhimmelreich/RevitPythonLibrary
 
 Uso en Dynamo:
     import sys
-    sys.path.append(r"C:\ruta\a\RevitPythonLibrary")
+    sys.path.append("C:/ruta/a/RevitPythonLibrary")
     from lib_completa import *
 """
 
-from lib_general import *
-from lib_coordinacion import *
-from lib_arquitectura import *
-from lib_instalaciones import *
-from lib_estructura import *
-from lib_geometria import *
-from lib_vistas import *
-from lib_familias import *
-from lib_cad import *
-from lib_excel import *
-from lib_bases_datos import *
-from lib_colaborativo import *
-from lib_transacciones import *
-from lib_seleccion_ui import *
+from lib_general import *        # noqa: F401,F403
+from lib_coordinacion import *   # noqa: F401,F403
+from lib_arquitectura import *   # noqa: F401,F403
+from lib_instalaciones import *  # noqa: F401,F403
+from lib_estructura import *     # noqa: F401,F403
+from lib_geometria import *      # noqa: F401,F403
+from lib_vistas import *         # noqa: F401,F403
+from lib_familias import *       # noqa: F401,F403
+from lib_cad import *            # noqa: F401,F403
+from lib_excel import *          # noqa: F401,F403
+from lib_bases_datos import *    # noqa: F401,F403
+from lib_colaborativo import *   # noqa: F401,F403
+from lib_transacciones import *  # noqa: F401,F403
+from lib_seleccion_ui import *   # noqa: F401,F403
+from lib_scientific import *     # noqa: F401,F403
