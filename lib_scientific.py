@@ -4,8 +4,10 @@ lib_scientific.py
 Integracion Revit API <-> Python cientifico
 pandas, numpy, scipy, matplotlib, shapely, networkx
 Compatible: CPython 3.x (Dynamo 2.13+) | Revit 2024-2026
-NOTA: IronPython 2.7 no soporta estas bibliotecas. Todas las
-funciones retornan None con aviso si la biblioteca no esta disponible.
+NOTA: IronPython 2.7 no soporta estas bibliotecas. Todas las funciones
+retornan None con aviso si la biblioteca no esta disponible.
+Las funciones matplotlib retornan System.Drawing.Bitmap directamente
+usable en Dynamo, o guardan a PNG si se especifica ruta_png.
 Repositorio: https://github.com/kevinhimmelreich/RevitPythonLibrary
 """
 
@@ -88,6 +90,59 @@ def _finalizar():
 
 def _no_disponible(lib):
     print(lib + " no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
+
+
+def figura_a_bitmap(fig):
+    """
+    Convierte una figura matplotlib a System.Drawing.Bitmap para
+    visualizarla directamente en un nodo Watch Image de Dynamo.
+    Basado en el patron plt2arr + convertToBitmap2 de Dynamo Python.
+
+    Args:
+        fig: figura matplotlib (matplotlib.figure.Figure)
+
+    Returns:
+        System.Drawing.Bitmap, o None si faltan dependencias
+
+    Requiere: CPython 3.x (Dynamo 2.13+), PIL/Pillow, numpy
+    """
+    try:
+        import numpy as np
+        import io as _io
+        import PIL.Image
+        import System
+        clr.AddReference("System.Drawing")
+        from System.Drawing import Bitmap
+        from System.IO import MemoryStream
+    except ImportError:
+        _no_disponible("PIL / System.Drawing")
+        return None
+    fig.canvas.draw()
+    rgba = fig.canvas.buffer_rgba()
+    w, h = fig.canvas.get_width_height()
+    arr = np.frombuffer(rgba, dtype=np.uint8).reshape((h, w, 4))
+    img = PIL.Image.fromarray(arr[:, :, :3], "RGB")
+    buf = _io.BytesIO()
+    img.save(buf, format="BMP")
+    net_bytes = System.Array[System.Byte](buf.getvalue())
+    with MemoryStream(net_bytes) as ms:
+        return Bitmap(ms)
+
+
+def _cerrar_fig(fig, ruta_png):
+    """
+    Si ruta_png esta definida guarda la figura a disco y devuelve la ruta.
+    Si no, convierte la figura a Bitmap para Dynamo y la devuelve.
+    Cierra la figura en ambos casos.
+    """
+    import matplotlib.pyplot as plt
+    if ruta_png:
+        fig.savefig(ruta_png, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return ruta_png
+    resultado = figura_a_bitmap(fig)
+    plt.close(fig)
+    return resultado
 
 
 # ── pandas <-> Revit API ─────────────────────────────────────────────────────
@@ -356,7 +411,7 @@ def centroide_nube(puntos_xyz):
 def clustering_por_posicion(elementos, n_grupos):
     """
     Agrupa elementos por proximidad espacial usando K-Means (scipy).
-    Util para zonar elementos automaticamente por area o planta.
+    Util para zonar automaticamente elementos por area o planta.
 
     Args:
         elementos: lista de elementos Revit con LocationPoint
@@ -370,9 +425,8 @@ def clustering_por_posicion(elementos, n_grupos):
     """
     try:
         from scipy.cluster.vq import kmeans2
-        import numpy as np
     except ImportError:
-        _no_disponible("scipy / numpy")
+        _no_disponible("scipy")
         return None
     arr = posiciones_elementos_numpy(elementos)
     if arr is None or len(arr) < n_grupos:
@@ -383,6 +437,61 @@ def clustering_por_posicion(elementos, n_grupos):
     _, etiquetas = kmeans2(arr_norm, n_grupos, minit="points")
     grupos = {}
     for elem, etiq in zip(elementos, etiquetas):
+        grupos.setdefault(int(etiq), []).append(elem)
+    return grupos
+
+
+def clustering_por_parametros(elementos, nombres_params, n_grupos):
+    """
+    Agrupa elementos segun los valores numericos de sus parametros usando
+    K-Means. Complementa clustering_por_posicion cuando lo relevante no
+    es la posicion sino las propiedades del elemento (area, espesor,
+    diametro, longitud, etc.).
+
+    Ejemplos de uso:
+        - Agrupar muros por espesor y altura
+        - Agrupar tuberias por diametro y longitud
+        - Agrupar habitaciones por area y perimetro
+
+    Args:
+        elementos: lista de elementos Revit
+        nombres_params: lista de nombres de parametros numericos
+        n_grupos: numero de grupos a generar
+
+    Returns:
+        dict {grupo_id: [elementos]} con los grupos resultantes,
+        o None si faltan dependencias o datos
+
+    Requiere: CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        from scipy.cluster.vq import kmeans2
+        import numpy as np
+    except ImportError:
+        _no_disponible("scipy / numpy")
+        return None
+    filas = []
+    validos = []
+    for elem in elementos:
+        valores = []
+        ok = True
+        for nombre in nombres_params:
+            v = _val_param(elem.LookupParameter(nombre))
+            if v is None or not isinstance(v, (int, float)):
+                ok = False
+                break
+            valores.append(float(v))
+        if ok:
+            filas.append(valores)
+            validos.append(elem)
+    if len(filas) < n_grupos:
+        return None
+    arr = np.array(filas)
+    std = arr.std(axis=0)
+    std[std == 0] = 1
+    _, etiquetas = kmeans2(arr / std, n_grupos, minit="points")
+    grupos = {}
+    for elem, etiq in zip(validos, etiquetas):
         grupos.setdefault(int(etiq), []).append(elem)
     return grupos
 
@@ -463,31 +572,44 @@ def interpolacion_parametro(
 
 
 # ── matplotlib <-> Revit API ─────────────────────────────────────────────────
+# Todas las funciones retornan System.Drawing.Bitmap si ruta_png es None,
+# o guardan a disco y devuelven la ruta si ruta_png esta definida.
+# Usar OUT = [bitmap] en Dynamo para visualizar con Watch Image.
 
-def _guardar_figura(fig, ruta_png):
-    """Guarda figura matplotlib a PNG y libera memoria."""
-    fig.savefig(ruta_png, dpi=150, bbox_inches="tight")
-    import matplotlib.pyplot as plt
-    plt.close(fig)
-    return ruta_png
+def limpiar_ejes(ax):
+    """
+    Elimina bordes superior y derecho del eje para un estilo limpio.
+    Util antes de exportar graficos de calidad para informes BIM.
+
+    Args:
+        ax: objeto matplotlib Axes
+
+    Returns:
+        ax modificado (in-place)
+    """
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    ax.yaxis.set_ticks_position("left")
+    ax.xaxis.set_ticks_position("bottom")
+    return ax
 
 
 def grafico_parametro_por_nivel(
-        elementos, nombre_param, ruta_png,
+        elementos, nombre_param, ruta_png=None,
         titulo=None, color="steelblue"):
     """
     Grafico de barras con el valor medio de un parametro numerico
-    agrupado por nivel de Revit. Exporta a PNG.
+    agrupado por nivel de Revit.
 
     Args:
         elementos: lista de elementos Revit
         nombre_param: nombre del parametro numerico a graficar
-        ruta_png: ruta de salida del archivo .png
+        ruta_png: ruta .png de salida (si None devuelve Bitmap)
         titulo: titulo del grafico (opcional)
         color: color de las barras (defecto "steelblue")
 
     Returns:
-        ruta_png si se genero correctamente, None si falta dependencia
+        Bitmap para Dynamo, ruta_png o None si falta dependencia
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
@@ -508,16 +630,19 @@ def grafico_parametro_por_nivel(
     agrupado = df.groupby("Nivel")[nombre_param].mean().dropna()
     fig, ax = plt.subplots(figsize=(10, 5))
     agrupado.plot(kind="bar", ax=ax, color=color)
-    ax.set_title(titulo or ("Media de " + nombre_param + " por nivel"))
+    ax.set_title(
+        titulo or ("Media de " + nombre_param + " por nivel")
+    )
     ax.set_xlabel("Nivel")
     ax.set_ylabel(nombre_param)
     ax.tick_params(axis="x", rotation=45)
+    limpiar_ejes(ax)
     fig.tight_layout()
-    return _guardar_figura(fig, ruta_png)
+    return _cerrar_fig(fig, ruta_png)
 
 
 def histograma_parametro(
-        elementos, nombre_param, ruta_png,
+        elementos, nombre_param, ruta_png=None,
         bins=20, titulo=None, color="steelblue"):
     """
     Histograma de la distribucion de valores de un parametro numerico.
@@ -526,13 +651,13 @@ def histograma_parametro(
     Args:
         elementos: lista de elementos Revit
         nombre_param: nombre del parametro numerico
-        ruta_png: ruta de salida del archivo .png
+        ruta_png: ruta .png de salida (si None devuelve Bitmap)
         bins: numero de intervalos (defecto 20)
         titulo: titulo del grafico (opcional)
         color: color de las barras
 
     Returns:
-        ruta_png o None
+        Bitmap para Dynamo, ruta_png o None
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
@@ -555,12 +680,14 @@ def histograma_parametro(
     ax.set_title(titulo or ("Distribucion de " + nombre_param))
     ax.set_xlabel(nombre_param)
     ax.set_ylabel("Frecuencia")
+    limpiar_ejes(ax)
     fig.tight_layout()
-    return _guardar_figura(fig, ruta_png)
+    return _cerrar_fig(fig, ruta_png)
 
 
 def grafico_dispersion(
-        elementos, param_x, param_y, ruta_png, titulo=None):
+        elementos, param_x, param_y,
+        ruta_png=None, titulo=None):
     """
     Grafico de dispersion (scatter) entre dos parametros numericos.
     Permite detectar correlaciones entre propiedades de elementos Revit.
@@ -569,11 +696,11 @@ def grafico_dispersion(
         elementos: lista de elementos Revit
         param_x: nombre del parametro para el eje X
         param_y: nombre del parametro para el eje Y
-        ruta_png: ruta de salida del archivo .png
+        ruta_png: ruta .png de salida (si None devuelve Bitmap)
         titulo: titulo del grafico (opcional)
 
     Returns:
-        ruta_png o None
+        Bitmap para Dynamo, ruta_png o None
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
@@ -596,12 +723,13 @@ def grafico_dispersion(
     ax.set_xlabel(param_x)
     ax.set_ylabel(param_y)
     ax.set_title(titulo or (param_x + " vs " + param_y))
+    limpiar_ejes(ax)
     fig.tight_layout()
-    return _guardar_figura(fig, ruta_png)
+    return _cerrar_fig(fig, ruta_png)
 
 
 def grafico_suma_por_categoria(
-        elementos, nombre_param, ruta_png, titulo=None):
+        elementos, nombre_param, ruta_png=None, titulo=None):
     """
     Grafico de sectores (pie) con la suma de un parametro numerico
     agrupada por categoria de elemento Revit. Util para reportes de
@@ -610,11 +738,11 @@ def grafico_suma_por_categoria(
     Args:
         elementos: lista de elementos Revit
         nombre_param: parametro numerico a sumar por categoria
-        ruta_png: ruta de salida del archivo .png
+        ruta_png: ruta .png de salida (si None devuelve Bitmap)
         titulo: titulo del grafico (opcional)
 
     Returns:
-        ruta_png o None
+        Bitmap para Dynamo, ruta_png o None
 
     Requiere: CPython 3.x (Dynamo 2.13+)
     """
@@ -637,7 +765,146 @@ def grafico_suma_por_categoria(
     ax.pie(resumen, labels=resumen.index, autopct="%1.1f%%")
     ax.set_title(titulo or (nombre_param + " por categoria"))
     fig.tight_layout()
-    return _guardar_figura(fig, ruta_png)
+    return _cerrar_fig(fig, ruta_png)
+
+
+def scatter_elementos_coloreados(
+        elementos, param_x, param_y,
+        param_color=None, titulo=None,
+        cmap="viridis", ruta_png=None):
+    """
+    Scatter donde el COLOR de cada punto esta mapeado al valor de un
+    tercer parametro de Revit. Permite visualizar tres variables del
+    modelo en un solo grafico con barra de color continua.
+
+    Ejemplo: tuberias con eje X=longitud, eje Y=diametro,
+    color=presion -> detecta relaciones ocultas entre propiedades MEP.
+
+    Args:
+        elementos: lista de elementos Revit
+        param_x: nombre del parametro para el eje X
+        param_y: nombre del parametro para el eje Y
+        param_color: nombre del parametro para el color (opcional)
+        titulo: titulo del grafico (opcional)
+        cmap: colormap matplotlib (defecto "viridis")
+        ruta_png: ruta .png de salida (si None devuelve Bitmap)
+
+    Returns:
+        Bitmap para Dynamo, ruta_png o None
+
+    Requiere: CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import pandas as pd
+    except ImportError:
+        _no_disponible("matplotlib / pandas")
+        return None
+    cols = [param_x, param_y]
+    if param_color:
+        cols.append(param_color)
+    df = elementos_a_dataframe(elementos, cols)
+    if df is None:
+        return None
+    df[param_x] = pd.to_numeric(df[param_x], errors="coerce")
+    df[param_y] = pd.to_numeric(df[param_y], errors="coerce")
+    if param_color:
+        df[param_color] = pd.to_numeric(
+            df[param_color], errors="coerce"
+        )
+    df = df.dropna(subset=[param_x, param_y])
+    fig, ax = plt.subplots(figsize=(9, 6))
+    if param_color and param_color in df.columns:
+        sc = ax.scatter(
+            df[param_x], df[param_y],
+            c=df[param_color], cmap=cmap, alpha=0.7
+        )
+        plt.colorbar(sc, ax=ax, label=param_color)
+    else:
+        ax.scatter(df[param_x], df[param_y], alpha=0.7)
+    ax.set_xlabel(param_x)
+    ax.set_ylabel(param_y)
+    ax.set_title(titulo or (param_x + " vs " + param_y))
+    limpiar_ejes(ax)
+    fig.tight_layout()
+    return _cerrar_fig(fig, ruta_png)
+
+
+def mapa_calor_planta(
+        habitaciones, nombre_param,
+        ruta_png=None, titulo=None, cmap="YlOrRd"):
+    """
+    Genera un mapa de calor de la planta del edificio coloreando cada
+    habitacion segun el valor de un parametro numerico. Combina shapely
+    (para los contornos del modelo) con matplotlib (visualizacion).
+
+    Ideal para representar areas, ocupacion, temperatura, iluminacion
+    u otros KPI directamente sobre la planta del edificio.
+
+    Args:
+        habitaciones: lista de Room de Revit
+        nombre_param: parametro numerico a mapear como color
+        ruta_png: ruta .png de salida (si None devuelve Bitmap)
+        titulo: titulo del grafico (opcional)
+        cmap: colormap matplotlib (defecto "YlOrRd")
+
+    Returns:
+        Bitmap para Dynamo, ruta_png o None
+
+    Requiere: CPython 3.x (Dynamo 2.13+), shapely, matplotlib
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.colors as mcolors
+        from matplotlib.patches import Polygon as MplPoly
+        from matplotlib.collections import PatchCollection
+        import numpy as np
+    except ImportError:
+        _no_disponible("matplotlib / numpy")
+        return None
+    try:
+        from shapely.geometry import Polygon  # noqa: F401
+    except ImportError:
+        _no_disponible("shapely")
+        return None
+
+    patches = []
+    valores = []
+    for hab in habitaciones:
+        pol = habitacion_a_shapely(hab)
+        if pol is None or not pol.is_valid:
+            continue
+        v = _val_param(hab.LookupParameter(nombre_param))
+        if v is None:
+            continue
+        coords = list(pol.exterior.coords)
+        patches.append(MplPoly(coords, closed=True))
+        valores.append(float(v))
+
+    if not patches:
+        return None
+
+    vals = np.array(valores)
+    norm = mcolors.Normalize(vmin=vals.min(), vmax=vals.max())
+    cmap_obj = plt.get_cmap(cmap)
+
+    fig, ax = plt.subplots(figsize=(12, 10))
+    col = PatchCollection(patches, norm=norm, cmap=cmap_obj, alpha=0.8)
+    col.set_array(vals)
+    ax.add_collection(col)
+    plt.colorbar(col, ax=ax, label=nombre_param)
+    ax.autoscale_view()
+    ax.set_aspect("equal")
+    ax.set_title(titulo or ("Mapa de calor: " + nombre_param))
+    ax.set_xlabel("X (m)")
+    ax.set_ylabel("Y (m)")
+    limpiar_ejes(ax)
+    fig.tight_layout()
+    return _cerrar_fig(fig, ruta_png)
 
 
 # ── shapely <-> Revit API ────────────────────────────────────────────────────
@@ -742,7 +1009,7 @@ def buffer_habitacion(habitacion, distancia_m):
 
     Args:
         habitacion: Room de Revit
-        distancia_m: distancia de expansion en metros (positivo = hacia fuera)
+        distancia_m: distancia de expansion en metros
 
     Returns:
         shapely.geometry.Polygon del area expandida, o None
