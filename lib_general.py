@@ -19,7 +19,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -35,9 +35,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -157,7 +157,8 @@ def obtener_valor_parametro(elemento, nombre_param):
 
 def establecer_valor_parametro(elemento, nombre_param, valor):
     """
-    Escribe el valor de un parametro de instancia por nombre. Requiere transaccion activa.
+    Escribe el valor de un parametro de instancia por nombre.
+    Requiere transaccion activa.
 
     Args:
         elemento: elemento Revit
@@ -189,7 +190,8 @@ def establecer_valor_parametro(elemento, nombre_param, valor):
 
 def obtener_todos_parametros(elemento):
     """
-    Retorna todos los parametros de un elemento como diccionario {nombre: valor}.
+    Retorna todos los parametros de un elemento como diccionario
+    {nombre: valor}.
 
     Args:
         elemento: elemento Revit
@@ -274,7 +276,8 @@ def pies_a_mm(valor_pies):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return UnitUtils.ConvertFromInternalUnits(valor_pies, UnitTypeId.Millimeters)
+    return UnitUtils.ConvertFromInternalUnits(
+        valor_pies, UnitTypeId.Millimeters)
 
 
 def m2_a_pies2(valor_m2):
@@ -304,15 +307,18 @@ def pies2_a_m2(valor_pies2):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return UnitUtils.ConvertFromInternalUnits(valor_pies2, UnitTypeId.SquareMeters)
+    return UnitUtils.ConvertFromInternalUnits(
+        valor_pies2, UnitTypeId.SquareMeters)
 
 
 def filtrar_por_categoria(categoria_builtIn):
     """
-    Retorna todos los elementos de instancia de una categoria BuiltIn del documento activo.
+    Retorna todos los elementos de instancia de una categoria BuiltIn
+    del documento activo.
 
     Args:
-        categoria_builtIn: valor BuiltInCategory (ej. BuiltInCategory.OST_Walls)
+        categoria_builtIn: valor BuiltInCategory (ej.
+        BuiltInCategory.OST_Walls)
 
     Returns:
         lista de elementos Revit

@@ -18,7 +18,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -32,9 +32,9 @@ from RevitServices.Persistence import DocumentManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -72,7 +72,7 @@ def seleccionar_cara(mensaje="Selecciona una cara"):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    ref  = _selection().PickObject(UIObjectType.Face, mensaje)
+    ref = _selection().PickObject(UIObjectType.Face, mensaje)
     elem = doc.GetElement(ref.ElementId)
     cara = elem.GetGeometryObjectFromReference(ref)
     return elem, cara
@@ -90,8 +90,8 @@ def seleccionar_arista(mensaje="Selecciona una arista"):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    ref    = _selection().PickObject(UIObjectType.Edge, mensaje)
-    elem   = doc.GetElement(ref.ElementId)
+    ref = _selection().PickObject(UIObjectType.Edge, mensaje)
+    elem = doc.GetElement(ref.ElementId)
     arista = elem.GetGeometryObjectFromReference(ref)
     return elem, arista
 
@@ -158,7 +158,8 @@ def seleccionar_rectangulo(mensaje="Dibuja un rectangulo de seleccion"):
     return list(_selection().PickElementsByRectangle(mensaje))
 
 
-def seleccionar_elemento_en_link(mensaje="Selecciona un elemento en un link"):
+def seleccionar_elemento_en_link(
+        mensaje="Selecciona un elemento en un link"):
     """
     Selecciona un elemento dentro de un Revit Link.
 
@@ -170,14 +171,15 @@ def seleccionar_elemento_en_link(mensaje="Selecciona un elemento en un link"):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    ref  = _selection().PickObject(UIObjectType.LinkedElement, mensaje)
+    ref = _selection().PickObject(UIObjectType.LinkedElement, mensaje)
     link = doc.GetElement(ref.ElementId)
     return link, ref
 
 
 def obtener_seleccion_actual():
     """
-    Retorna los ElementId de los elementos actualmente seleccionados en Revit.
+    Retorna los ElementId de los elementos actualmente seleccionados
+    en Revit.
 
     Args:
         (ninguno)

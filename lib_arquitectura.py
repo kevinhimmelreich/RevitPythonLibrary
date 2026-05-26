@@ -18,7 +18,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -28,7 +28,8 @@ from System.Collections.Generic import List
 from Autodesk.Revit.DB import (
     FilteredElementCollector, ElementId, Wall, WallType, Floor, FloorType,
     BuiltInCategory, BuiltInParameter, CurveArray, CurveLoop, UV, XYZ,
-    BoundingBoxXYZ, SpatialElementBoundaryOptions, SpatialElementBoundaryLocation,
+    BoundingBoxXYZ, SpatialElementBoundaryOptions,
+    SpatialElementBoundaryLocation,
     SpatialElementGeometryCalculator, Phase, RoomFilter,
     CompoundStructure, CompoundStructureLayer, SketchPlane,
     UnitUtils, UnitTypeId
@@ -40,9 +41,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -51,20 +52,26 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 def _pies_a_metros(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Meters)
 
+
 def _metros_a_pies(v):
     return UnitUtils.ConvertToInternalUnits(v, UnitTypeId.Meters)
+
 
 def _mm_a_pies(v):
     return UnitUtils.ConvertToInternalUnits(v, UnitTypeId.Millimeters)
 
+
 def _pies_a_mm(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Millimeters)
+
 
 def _pies2_a_m2(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.SquareMeters)
 
+
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
@@ -347,7 +354,10 @@ def obtener_habitaciones_por_nivel(nivel):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return [r for r in obtener_habitaciones() if r.Level and r.Level.Id == nivel.Id]
+    return [
+        r for r in obtener_habitaciones()
+        if r.Level and r.Level.Id == nivel.Id
+    ]
 
 
 def obtener_muros_por_tipo(nombre_tipo):
@@ -467,7 +477,8 @@ def crear_suelo(lineas_contorno, tipo_suelo_id, nivel):
 
 def obtener_centroide_habitacion(habitacion):
     """
-    Retorna el punto central XYZ de una habitacion a partir de su bounding box.
+    Retorna el punto central XYZ de una habitacion a partir de su
+    bounding box.
 
     Args:
         habitacion: elemento Room de Revit
@@ -500,7 +511,8 @@ def obtener_contorno_habitacion(habitacion):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     opciones = SpatialElementBoundaryOptions()
-    opciones.SpatialElementBoundaryLocation = SpatialElementBoundaryLocation.Finish
+    opciones.SpatialElementBoundaryLocation = (
+        SpatialElementBoundaryLocation.Finish)
     elementos, curvas = [], []
     for segmentos in habitacion.GetBoundarySegments(opciones):
         for seg in segmentos:
@@ -525,15 +537,16 @@ def calcular_volumen_habitacion(habitacion):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     calculator = SpatialElementGeometryCalculator(doc)
-    resultado  = calculator.CalculateSpatialElementGeometry(habitacion)
-    solido     = resultado.GetGeometry()
+    resultado = calculator.CalculateSpatialElementGeometry(habitacion)
+    solido = resultado.GetGeometry()
     pies3 = solido.Volume
     return UnitUtils.ConvertFromInternalUnits(pies3, UnitTypeId.CubicMeters)
 
 
 def clasificar_habitaciones_por_nombre(habitaciones, patron_regex):
     """
-    Clasifica una lista de habitaciones en grupos segun un patron regex en el nombre.
+    Clasifica una lista de habitaciones en grupos segun un patron regex
+    en el nombre.
 
     Args:
         habitaciones: lista de Room de Revit
@@ -567,11 +580,11 @@ def obtener_puertas_de_habitacion(habitacion):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     fases = list(FilteredElementCollector(doc).OfClass(Phase).ToElements())
-    fase  = fases[-1] if fases else None
+    fase = fases[-1] if fases else None
     resultado = []
     for puerta in obtener_puertas():
         try:
-            origen  = puerta.FromRoom[fase]
+            origen = puerta.FromRoom[fase]
             destino = puerta.ToRoom[fase]
             if (origen and origen.Id == habitacion.Id) or \
                (destino and destino.Id == habitacion.Id):
@@ -594,7 +607,8 @@ def obtener_ventanas_de_habitacion(habitacion):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     elementos_limite, _ = obtener_contorno_habitacion(habitacion)
-    ids_muros = set(e.Id.IntegerValue for e in elementos_limite if e is not None)
+    ids_muros = set(
+        e.Id.IntegerValue for e in elementos_limite if e is not None)
     resultado = []
     for v in obtener_ventanas():
         host = v.Host
@@ -605,7 +619,8 @@ def obtener_ventanas_de_habitacion(habitacion):
 
 def obtener_area_total_habitaciones():
     """
-    Retorna el area total de todas las habitaciones colocadas en metros cuadrados.
+    Retorna el area total de todas las habitaciones colocadas en metros
+    cuadrados.
 
     Args:
         (ninguno)
@@ -723,7 +738,8 @@ def crear_area_en_punto(vista_area, punto_uv):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    uv = UV(punto_uv[0], punto_uv[1]) if not isinstance(punto_uv, UV) else punto_uv
+    uv = UV(punto_uv[0], punto_uv[1]) if not isinstance(punto_uv, UV) \
+        else punto_uv
     _iniciar("Crear Area")
     area = doc.Create.NewArea(vista_area, uv)
     _finalizar()
@@ -736,7 +752,8 @@ def crear_abertura_suelo(suelo, lineas_contorno):
 
     Args:
         suelo: elemento Floor de Revit
-        lineas_contorno: lista de curvas Revit que forman el contorno de la abertura
+        lineas_contorno: lista de curvas Revit que forman el contorno
+            de la abertura
 
     Returns:
         Opening creada
@@ -744,8 +761,8 @@ def crear_abertura_suelo(suelo, lineas_contorno):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     curva_array = CurveArray()
-    for l in lineas_contorno:
-        curva_array.Append(l)
+    for linea in lineas_contorno:
+        curva_array.Append(linea)
     _iniciar("Abertura en Suelo")
     abertura = doc.Create.NewOpening(suelo, curva_array, True)
     _finalizar()
@@ -754,7 +771,8 @@ def crear_abertura_suelo(suelo, lineas_contorno):
 
 def clasificar_habitaciones_por_estado():
     """
-    Clasifica todas las habitaciones por estado: colocadas, no_colocadas, no_cerradas, redundantes.
+    Clasifica todas las habitaciones por estado: colocadas, no_colocadas,
+    no_cerradas, redundantes.
 
     Args:
         (ninguno)

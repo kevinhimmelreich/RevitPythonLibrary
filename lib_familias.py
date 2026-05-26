@@ -19,7 +19,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -36,25 +36,30 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
 
 
-# ── IFamilyLoadOptions (unica clase permitida por la interfaz .NET obligatoria) ──
+# ── IFamilyLoadOptions (unica clase permitida por la interfaz .NET) ──────────
 class _OpcionCarga(IFamilyLoadOptions):
-    """Opciones de carga: sobreescribe parametros y acepta familias compartidas."""
+    """Opciones de carga: sobreescribe parametros y acepta familias
+    compartidas."""
     def OnFamilyFound(self, _familyInUse, _overwriteParameterValues):
         return True
-    def OnSharedFamilyFound(self, _sharedFamily, _familyInUse, _source, _overwriteParameterValues):
+
+    def OnSharedFamilyFound(
+            self, _sharedFamily, _familyInUse, _source,
+            _overwriteParameterValues):
         return True
 
 
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
@@ -68,7 +73,8 @@ def cargar_familia(ruta_rfa):
         ruta_rfa: ruta completa al archivo .rfa
 
     Returns:
-        lista de FamilySymbol activados, o None si no se cargo (ya existia o no se encontro)
+        lista de FamilySymbol activados, o None si no se cargo (ya existia
+        o no se encontro)
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
@@ -78,7 +84,7 @@ def cargar_familia(ruta_rfa):
     _iniciar("Cargar Familia")
     cargada = doc.LoadFamily(ruta_rfa, _OpcionCarga(), ref_familia)
     if cargada:
-        familia  = ref_familia.Value
+        familia = ref_familia.Value
         simbolos = []
         for sid in familia.GetFamilySymbolIds():
             s = doc.GetElement(sid)
@@ -105,7 +111,9 @@ def obtener_tipos_de_familia(nombre_familia):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tipos = list(FilteredElementCollector(doc).OfClass(FamilySymbol).ToElements())
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(FamilySymbol).ToElements()
+    )
     resultado = [t for t in tipos if t.Family.Name == nombre_familia]
     _iniciar("Activar Tipos Familia")
     for t in resultado:
@@ -135,7 +143,8 @@ def activar_tipo_familia(family_symbol):
 
 def colocar_instancia_familia(tipo_id, punto_xyz, nivel, angulo_rad=0.0):
     """
-    Coloca una instancia de familia no estructural en un punto XYZ de un nivel.
+    Coloca una instancia de familia no estructural en un punto XYZ de un
+    nivel.
 
     Args:
         tipo_id: ElementId del FamilySymbol
@@ -226,7 +235,8 @@ def exportar_familia(familia, ruta_destino):
 
     Args:
         familia: elemento Family de Revit
-        ruta_destino: ruta completa de salida incluyendo nombre y extension .rfa
+        ruta_destino: ruta completa de salida incluyendo nombre y extension
+            .rfa
 
     Returns:
         True si se exporto correctamente, False en caso contrario
@@ -272,7 +282,7 @@ def eliminar_familias_no_usadas():
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     eliminadas = []
-    familias   = list(FilteredElementCollector(doc).OfClass(Family).ToElements())
+    familias = list(FilteredElementCollector(doc).OfClass(Family).ToElements())
     _iniciar("Eliminar Familias No Usadas")
     for f in familias:
         usada = False
@@ -295,7 +305,8 @@ def eliminar_familias_no_usadas():
 
 def exportar_todas_las_familias(directorio_destino):
     """
-    Exporta todas las familias de usuario del documento como archivos .rfa organizados por categoria.
+    Exporta todas las familias de usuario del documento como archivos .rfa
+    organizados por categoria.
 
     Args:
         directorio_destino: ruta de la carpeta donde se exportan las familias
@@ -311,9 +322,10 @@ def exportar_todas_las_familias(directorio_destino):
     for f in familias:
         if f.IsInPlace or not f.IsUserCreated:
             continue
-        nombre    = f.Name
-        categoria = f.FamilyCategory.Name if f.FamilyCategory else "SinCategoria"
-        carpeta   = os.path.join(directorio_destino, categoria)
+        nombre = f.Name
+        categoria = (f.FamilyCategory.Name
+                     if f.FamilyCategory else "SinCategoria")
+        carpeta = os.path.join(directorio_destino, categoria)
         if not os.path.exists(carpeta):
             os.makedirs(carpeta)
         ruta = os.path.join(carpeta, nombre + ".rfa")

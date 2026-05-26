@@ -19,7 +19,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -43,9 +43,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -54,11 +54,14 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 def _metros_a_pies(v):
     return UnitUtils.ConvertToInternalUnits(v, UnitTypeId.Meters)
 
+
 def _pies_a_metros(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Meters)
 
+
 def _iniciar_transaccion(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar_transaccion():
     TransactionManager.Instance.TransactionTaskDone()
@@ -81,7 +84,8 @@ def obtener_documento_activo():
 
 def obtener_todos_los_elementos(categoria=None):
     """
-    Colecta todos los elementos de instancia del documento, filtrados opcionalmente por categoria.
+    Colecta todos los elementos de instancia del documento, filtrados
+    opcionalmente por categoria.
 
     Args:
         categoria: BuiltInCategory opcional (ej. BuiltInCategory.OST_Walls)
@@ -142,7 +146,7 @@ def obtener_niveles():
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     niveles = list(FilteredElementCollector(doc).OfClass(Level).ToElements())
-    return sorted(niveles, key=lambda l: l.Elevation)
+    return sorted(niveles, key=lambda nivel: nivel.Elevation)
 
 
 def obtener_vistas_por_tipo(tipo_vista):
@@ -222,7 +226,9 @@ def obtener_tipos_de_familia(nombre_familia):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tipos = list(FilteredElementCollector(doc).OfClass(FamilySymbol).ToElements())
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(FamilySymbol).ToElements()
+    )
     return [t for t in tipos if t.Family.Name == nombre_familia]
 
 
@@ -263,7 +269,9 @@ def obtener_links_revit():
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return list(FilteredElementCollector(doc).OfClass(RevitLinkInstance).ToElements())
+    return list(
+        FilteredElementCollector(doc).OfClass(RevitLinkInstance).ToElements()
+    )
 
 
 def obtener_links_cad():
@@ -278,7 +286,9 @@ def obtener_links_cad():
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return list(FilteredElementCollector(doc).OfClass(ImportInstance).ToElements())
+    return list(
+        FilteredElementCollector(doc).OfClass(ImportInstance).ToElements()
+    )
 
 
 def obtener_advertencias():
@@ -431,7 +441,8 @@ def crear_plano(numero, nombre, tipo_plano_id=None):
     Args:
         numero: numero del plano como string (ej. "A-101")
         nombre: nombre del plano como string
-        tipo_plano_id: ElementId del tipo de cajetín (opcional, usa el primero si es None)
+        tipo_plano_id: ElementId del tipo de cajetin (opcional, usa el
+            primero si es None)
 
     Returns:
         ViewSheet creado
@@ -471,7 +482,8 @@ def anadir_vista_a_plano(plano, vista, punto_uv=None):
     if punto_uv is None:
         punto_uv = UV(0.5, 0.5)
     _iniciar_transaccion("Anadir Vista a Plano")
-    viewport = Viewport.Create(doc, plano.Id, vista.Id, XYZ(punto_uv.U, punto_uv.V, 0))
+    viewport = Viewport.Create(
+        doc, plano.Id, vista.Id, XYZ(punto_uv.U, punto_uv.V, 0))
     _finalizar_transaccion()
     return viewport
 
@@ -514,7 +526,9 @@ def aplicar_plantilla_vista(vistas, nombre_plantilla):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     todas = list(FilteredElementCollector(doc).OfClass(View).ToElements())
-    plantilla = next((v for v in todas if v.IsTemplate and v.Name == nombre_plantilla), None)
+    plantilla = next(
+        (v for v in todas if v.IsTemplate and v.Name == nombre_plantilla),
+        None)
     if plantilla is None:
         return None
     _iniciar_transaccion("Aplicar Plantilla Vista")
@@ -539,27 +553,27 @@ def crear_seccion(curva, tipo_vista_id, offset=1.0, altura=3.0):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    sp  = curva.GetEndPoint(0)
-    ep  = curva.GetEndPoint(1)
-    v   = ep - sp
-    w   = v.GetLength()
+    sp = curva.GetEndPoint(0)
+    ep = curva.GetEndPoint(1)
+    v = ep - sp
+    w = v.GetLength()
     mid = sp + 0.5 * v
     dir_linea = v.Normalize()
-    up  = XYZ.BasisZ
+    up = XYZ.BasisZ
     normal = dir_linea.CrossProduct(up)
 
     off = _metros_a_pies(offset)
     alt = _metros_a_pies(altura)
 
     bb = BoundingBoxXYZ()
-    t  = Transform.Identity
+    t = Transform.Identity
     t.Origin = mid
     t.BasisX = dir_linea
     t.BasisY = up
     t.BasisZ = normal
     bb.Transform = t
     bb.Min = XYZ(-w / 2, 0, -off)
-    bb.Max = XYZ( w / 2, alt,  off)
+    bb.Max = XYZ(w / 2, alt, off)
 
     _iniciar_transaccion("Crear Seccion")
     seccion = ViewSection.CreateSection(doc, tipo_vista_id, bb)
@@ -579,8 +593,12 @@ def crear_vista_3d_isometrica(nombre):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tipos = list(FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements())
-    tipo = next((t for t in tipos if t.ViewFamily == ViewFamily.ThreeDimensional), None)
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    )
+    tipo = next(
+        (t for t in tipos if t.ViewFamily == ViewFamily.ThreeDimensional),
+        None)
     if tipo is None:
         return None
     _iniciar_transaccion("Crear Vista 3D")
@@ -590,7 +608,8 @@ def crear_vista_3d_isometrica(nombre):
     return vista
 
 
-def crear_vista_plano_desde_habitacion(habitacion, tipo_vista_id, offset_m=1.0, escala=50):
+def crear_vista_plano_desde_habitacion(
+        habitacion, tipo_vista_id, offset_m=1.0, escala=50):
     """
     Crea una vista de planta recortada al bounding box de una habitacion.
 
@@ -606,18 +625,20 @@ def crear_vista_plano_desde_habitacion(habitacion, tipo_vista_id, offset_m=1.0, 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     bbox = habitacion.BoundingBox[doc.ActiveView]
-    off  = _metros_a_pies(offset_m)
+    off = _metros_a_pies(offset_m)
     nuevo_bb = BoundingBoxXYZ()
-    nuevo_bb.Min = XYZ(bbox.Min.X - off, bbox.Min.Y - off, bbox.Min.Z - off)
-    nuevo_bb.Max = XYZ(bbox.Max.X + off, bbox.Max.Y + off, bbox.Max.Z + off)
+    nuevo_bb.Min = XYZ(
+        bbox.Min.X - off, bbox.Min.Y - off, bbox.Min.Z - off)
+    nuevo_bb.Max = XYZ(
+        bbox.Max.X + off, bbox.Max.Y + off, bbox.Max.Z + off)
 
     _iniciar_transaccion("Crear Vista Plano Habitacion")
     nivel = habitacion.Level
     vista = ViewPlan.Create(doc, tipo_vista_id, nivel.Id)
-    vista.CropBox        = nuevo_bb
-    vista.CropBoxActive  = True
+    vista.CropBox = nuevo_bb
+    vista.CropBoxActive = True
     vista.CropBoxVisible = False
-    vista.Scale          = escala
+    vista.Scale = escala
     _finalizar_transaccion()
     return vista
 
@@ -642,8 +663,8 @@ def exportar_vistas_a_imagen(vistas, ruta_base, formato=None):
     for v in vistas:
         ids.Add(v.Id)
     opciones = ImageExportOptions()
-    opciones.FilePath        = ruta_base
-    opciones.ExportRange     = ExportRange.SetOfViews
+    opciones.FilePath = ruta_base
+    opciones.ExportRange = ExportRange.SetOfViews
     opciones.SetViewsAndSheets(ids)
     opciones.ImageResolution = ImageResolution.DPI_150
     opciones.HLRandWFViewsFileType = formato
@@ -651,7 +672,8 @@ def exportar_vistas_a_imagen(vistas, ruta_base, formato=None):
     return ruta_base
 
 
-def copiar_elementos_entre_vistas(vista_origen, vista_destino, elementos, transformacion=None):
+def copiar_elementos_entre_vistas(
+        vista_origen, vista_destino, elementos, transformacion=None):
     """
     Copia elementos anotados de una vista a otra.
 
@@ -674,16 +696,19 @@ def copiar_elementos_entre_vistas(vista_origen, vista_destino, elementos, transf
     return [doc.GetElement(i) for i in copiados]
 
 
-def sobreescribir_grafico_elemento(vista, elemento, color_superficie=None,
-                                   patron_sup_id=None, color_corte=None, patron_corte_id=None):
+def sobreescribir_grafico_elemento(
+        vista, elemento, color_superficie=None,
+        patron_sup_id=None, color_corte=None, patron_corte_id=None):
     """
     Aplica overrides de color y patron de relleno a un elemento en una vista.
 
     Args:
         vista: View donde aplicar el override
         elemento: elemento Revit
-        color_superficie: tupla (R, G, B) para el color de superficie (opcional)
-        patron_sup_id: ElementId del patron de relleno de superficie (opcional)
+        color_superficie: tupla (R, G, B) para el color de superficie
+            (opcional)
+        patron_sup_id: ElementId del patron de relleno de superficie
+            (opcional)
         color_corte: tupla (R, G, B) para el color de corte (opcional)
         patron_corte_id: ElementId del patron de corte (opcional)
 
@@ -694,7 +719,8 @@ def sobreescribir_grafico_elemento(vista, elemento, color_superficie=None,
     """
     ogs = OverrideGraphicSettings()
     if color_superficie:
-        col = Color(color_superficie[0], color_superficie[1], color_superficie[2])
+        col = Color(
+            color_superficie[0], color_superficie[1], color_superficie[2])
         ogs.SetSurfaceForegroundPatternColor(col)
         ogs.SetSurfaceForegroundPatternVisible(True)
     if patron_sup_id:
@@ -716,8 +742,10 @@ def crear_alzado(posicion_xyz, vista_plan_id, indice=0, escala=100):
 
     Args:
         posicion_xyz: XYZ de posicion del marcador de alzado
-        vista_plan_id: ElementId de la vista de planta donde se crea el marcador
-        indice: 0=Norte/Derecha, 1=Este/Abajo, 2=Sur/Izquierda, 3=Oeste/Arriba
+        vista_plan_id: ElementId de la vista de planta donde se crea
+            el marcador
+        indice: 0=Norte/Derecha, 1=Este/Abajo, 2=Sur/Izquierda,
+            3=Oeste/Arriba
         escala: escala de la vista de alzado
 
     Returns:
@@ -725,10 +753,14 @@ def crear_alzado(posicion_xyz, vista_plan_id, indice=0, escala=100):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tipos = list(FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements())
-    tipo_id = next(t.Id for t in tipos if t.ViewFamily == ViewFamily.Elevation)
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    )
+    tipo_id = next(
+        t.Id for t in tipos if t.ViewFamily == ViewFamily.Elevation)
     _iniciar_transaccion("Crear Alzado")
-    marker = ElevationMarker.CreateElevationMarker(doc, tipo_id, posicion_xyz, escala)
+    marker = ElevationMarker.CreateElevationMarker(
+        doc, tipo_id, posicion_xyz, escala)
     alzado = marker.CreateElevation(doc, vista_plan_id, indice)
     _finalizar_transaccion()
     return marker, alzado

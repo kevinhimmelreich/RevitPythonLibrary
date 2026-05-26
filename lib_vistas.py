@@ -18,7 +18,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -38,9 +38,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -49,11 +49,14 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 def _metros_a_pies(v):
     return UnitUtils.ConvertToInternalUnits(v, UnitTypeId.Meters)
 
+
 def _pies_a_metros(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Meters)
 
+
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
@@ -71,8 +74,12 @@ def crear_vista_3d_isometrica(nombre):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tipos = list(FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements())
-    tipo = next((t for t in tipos if t.ViewFamily == ViewFamily.ThreeDimensional), None)
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    )
+    tipo = next(
+        (t for t in tipos if t.ViewFamily == ViewFamily.ThreeDimensional),
+        None)
     if tipo is None:
         return None
     _iniciar("Crear Vista 3D Isometrica")
@@ -84,7 +91,8 @@ def crear_vista_3d_isometrica(nombre):
 
 def crear_seccion_desde_curva(curva, offset_m=2.0, altura_m=3.0):
     """
-    Crea una ViewSection a partir de una curva o elemento con curva de ubicacion.
+    Crea una ViewSection a partir de una curva o elemento con curva de
+    ubicacion.
 
     Args:
         curva: curva Revit o elemento con .Location.Curve
@@ -100,25 +108,27 @@ def crear_seccion_desde_curva(curva, offset_m=2.0, altura_m=3.0):
         curva = curva.Location.Curve
     ini = curva.GetEndPoint(0)
     fin = curva.GetEndPoint(1)
-    v   = fin - ini
-    w   = v.GetLength()
+    v = fin - ini
+    w = v.GetLength()
     mid = ini + 0.5 * v
-    dir_l  = v.Normalize()
+    dir_l = v.Normalize()
     normal = dir_l.CrossProduct(XYZ.BasisZ)
-    off    = _metros_a_pies(offset_m)
-    alt    = _metros_a_pies(altura_m)
+    off = _metros_a_pies(offset_m)
+    alt = _metros_a_pies(altura_m)
 
     bb = BoundingBoxXYZ()
-    t  = Transform.Identity
+    t = Transform.Identity
     t.Origin = mid
     t.BasisX = dir_l
     t.BasisY = XYZ.BasisZ
     t.BasisZ = normal
     bb.Transform = t
     bb.Min = XYZ(-w / 2, ini.Z, -off)
-    bb.Max = XYZ( w / 2, alt,    off)
+    bb.Max = XYZ(w / 2, alt, off)
 
-    tipos   = list(FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements())
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    )
     tipo_id = next(t.Id for t in tipos if t.ViewFamily == ViewFamily.Section)
     _iniciar("Crear Seccion desde Curva")
     seccion = ViewSection.CreateSection(doc, tipo_id, bb)
@@ -132,8 +142,10 @@ def crear_alzado_en_punto(punto_xyz, vista_plan_id, indice=0, escala=100):
 
     Args:
         punto_xyz: XYZ de posicion del marcador de alzado
-        vista_plan_id: ElementId de la vista de planta donde se crea el marcador
-        indice: 0=Norte/Derecha, 1=Este/Abajo, 2=Sur/Izquierda, 3=Oeste/Arriba
+        vista_plan_id: ElementId de la vista de planta donde se crea
+            el marcador
+        indice: 0=Norte/Derecha, 1=Este/Abajo, 2=Sur/Izquierda,
+            3=Oeste/Arriba
         escala: escala de la vista de alzado
 
     Returns:
@@ -141,10 +153,14 @@ def crear_alzado_en_punto(punto_xyz, vista_plan_id, indice=0, escala=100):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tipos   = list(FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements())
-    tipo_id = next(t.Id for t in tipos if t.ViewFamily == ViewFamily.Elevation)
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    )
+    tipo_id = next(
+        t.Id for t in tipos if t.ViewFamily == ViewFamily.Elevation)
     _iniciar("Crear Alzado")
-    marker = ElevationMarker.CreateElevationMarker(doc, tipo_id, punto_xyz, escala)
+    marker = ElevationMarker.CreateElevationMarker(
+        doc, tipo_id, punto_xyz, escala)
     alzado = marker.CreateElevation(doc, vista_plan_id, indice)
     _finalizar()
     return marker, alzado
@@ -164,10 +180,14 @@ def crear_cartela(vista_plan, punto1_xyz, punto2_xyz):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tipos   = list(FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements())
-    tipo_id = next(t.Id for t in tipos if t.ViewFamily == ViewFamily.FloorPlan)
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    )
+    tipo_id = next(
+        t.Id for t in tipos if t.ViewFamily == ViewFamily.FloorPlan)
     _iniciar("Crear Cartela")
-    llamada = ViewSection.CreateCallout(doc, vista_plan.Id, tipo_id, punto1_xyz, punto2_xyz)
+    llamada = ViewSection.CreateCallout(
+        doc, vista_plan.Id, tipo_id, punto1_xyz, punto2_xyz)
     _finalizar()
     return llamada
 
@@ -177,15 +197,18 @@ def crear_vista_detalle(elemento_referencia):
     Crea una vista de detalle a partir del bounding box de un elemento.
 
     Args:
-        elemento_referencia: elemento Revit cuyo bounding box define el area de detalle
+        elemento_referencia: elemento Revit cuyo bounding box define el
+            area de detalle
 
     Returns:
         ViewSection (detalle) creada
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    caja    = elemento_referencia.get_BoundingBox(doc.ActiveView)
-    tipos   = list(FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements())
+    caja = elemento_referencia.get_BoundingBox(doc.ActiveView)
+    tipos = list(
+        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    )
     tipo_id = next(t.Id for t in tipos if t.ViewFamily == ViewFamily.Detail)
     _iniciar("Crear Detalle")
     detalle = ViewSection.CreateDetail(doc, tipo_id, caja)
@@ -381,8 +404,8 @@ def establecer_cropbox(vista, bbox_xyz):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     _iniciar("Establecer CropBox")
-    vista.CropBox        = bbox_xyz
-    vista.CropBoxActive  = True
+    vista.CropBox = bbox_xyz
+    vista.CropBoxActive = True
     vista.CropBoxVisible = True
     _finalizar()
 
@@ -442,8 +465,8 @@ def exportar_vista_a_imagen(vista, ruta_salida, anchura_px=1920):
     ids = List[ElementId]()
     ids.Add(vista.Id)
     opciones = ImageExportOptions()
-    opciones.FilePath        = ruta_salida
-    opciones.ExportRange     = ExportRange.SetOfViews
+    opciones.FilePath = ruta_salida
+    opciones.ExportRange = ExportRange.SetOfViews
     opciones.SetViewsAndSheets(ids)
     opciones.ImageResolution = ImageResolution.DPI_150
     opciones.HLRandWFViewsFileType = ImageFileType.PNG

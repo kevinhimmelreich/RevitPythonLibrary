@@ -19,7 +19,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -38,9 +38,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -49,14 +49,18 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 def _pies_a_metros(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Meters)
 
+
 def _pies_a_mm(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Millimeters)
+
 
 def _mm_a_pies(v):
     return UnitUtils.ConvertToInternalUnits(v, UnitTypeId.Millimeters)
 
+
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
@@ -314,7 +318,9 @@ def obtener_sistemas_mecanicos():
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return list(FilteredElementCollector(doc).OfClass(MechanicalSystem).ToElements())
+    return list(
+        FilteredElementCollector(doc).OfClass(MechanicalSystem).ToElements()
+    )
 
 
 def obtener_sistemas_fontaneria():
@@ -329,7 +335,9 @@ def obtener_sistemas_fontaneria():
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return list(FilteredElementCollector(doc).OfClass(PipingSystem).ToElements())
+    return list(
+        FilteredElementCollector(doc).OfClass(PipingSystem).ToElements()
+    )
 
 
 def obtener_longitud_conducto(conducto):
@@ -408,7 +416,8 @@ def obtener_sistema_tuberia(tuberia):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    param = tuberia.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)
+    param = tuberia.get_Parameter(
+        BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)
     if param:
         sistema = doc.GetElement(param.AsElementId())
         return sistema.Name if sistema else None
@@ -520,7 +529,8 @@ def obtener_longitud_total_tuberias():
 
 def obtener_longitud_total_bandejas():
     """
-    Retorna la longitud total de todas las bandejas de cable del documento en metros.
+    Retorna la longitud total de todas las bandejas de cable del documento
+    en metros.
 
     Args:
         (ninguno)
@@ -545,11 +555,14 @@ def obtener_espacios_por_nivel(nivel):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return [e for e in obtener_espacios() if e.Level and e.Level.Id == nivel.Id]
+    return [
+        e for e in obtener_espacios()
+        if e.Level and e.Level.Id == nivel.Id
+    ]
 
 
-def crear_bandeja_cable(tipo_bandeja_id, punto_inicio_xyz, punto_fin_xyz, nivel,
-                        ancho_mm=300.0, alto_mm=100.0):
+def crear_bandeja_cable(tipo_bandeja_id, punto_inicio_xyz, punto_fin_xyz,
+                        nivel, ancho_mm=300.0, alto_mm=100.0):
     """
     Crea una bandeja de cables entre dos puntos XYZ con ancho y alto en mm.
 
@@ -569,8 +582,10 @@ def crear_bandeja_cable(tipo_bandeja_id, punto_inicio_xyz, punto_fin_xyz, nivel,
     _iniciar("Crear Bandeja Cable")
     bandeja = CableTray.Create(
         doc, tipo_bandeja_id, punto_inicio_xyz, punto_fin_xyz, nivel.Id)
-    p_ancho = bandeja.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)
-    p_alto  = bandeja.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)
+    p_ancho = bandeja.get_Parameter(
+        BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)
+    p_alto = bandeja.get_Parameter(
+        BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)
     if p_ancho:
         p_ancho.SetValueString(str(ancho_mm))
     if p_alto:

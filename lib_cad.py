@@ -18,7 +18,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -33,9 +33,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -43,6 +43,7 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
@@ -60,12 +61,15 @@ def obtener_todos_links_cad():
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return list(FilteredElementCollector(doc).OfClass(ImportInstance).ToElements())
+    return list(
+        FilteredElementCollector(doc).OfClass(ImportInstance).ToElements()
+    )
 
 
 def obtener_nombres_capas_cad(instancia_cad):
     """
-    Retorna lista ordenada con los nombres de todos los layers de una instancia CAD.
+    Retorna lista ordenada con los nombres de todos los layers de una
+    instancia CAD.
 
     Args:
         instancia_cad: ImportInstance de Revit (link o importacion CAD)
@@ -92,7 +96,7 @@ def obtener_curvas_por_capa(instancia_cad, nombre_capa):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    opciones   = instancia_cad.get_Geometry(Options())
+    opciones = instancia_cad.get_Geometry(Options())
     geometrias = []
     for g in opciones:
         try:
@@ -107,7 +111,7 @@ def obtener_curvas_por_capa(instancia_cad, nombre_capa):
         if "Solid" in tipo:
             continue
         style_id = geo.GraphicsStyleId
-        style    = doc.GetElement(style_id)
+        style = doc.GetElement(style_id)
         if style and style.GraphicsStyleCategory.Name == nombre_capa:
             curvas.append(geo)
     return curvas
@@ -126,7 +130,7 @@ def obtener_datos_bloques_cad(instancia_cad):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     opciones = instancia_cad.get_Geometry(Options())
-    bloques  = []
+    bloques = []
     for g in opciones:
         try:
             for obj in g.GetSymbolGeometry():
@@ -144,13 +148,15 @@ def obtener_datos_bloques_cad(instancia_cad):
 
 def obtener_origen_link_cad(instancia_cad):
     """
-    Retorna el vector de desplazamiento entre el origen del link CAD y el proyecto Revit.
+    Retorna el vector de desplazamiento entre el origen del link CAD y el
+    proyecto Revit.
 
     Args:
         instancia_cad: ImportInstance de Revit
 
     Returns:
-        XYZ con la posicion del origen del link CAD en coordenadas del proyecto
+        XYZ con la posicion del origen del link CAD en coordenadas del
+        proyecto
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
@@ -190,7 +196,7 @@ def eliminar_todos_links_cad():
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     links = obtener_todos_links_cad()
-    ids   = [l.Id for l in links]
+    ids = [enlace.Id for enlace in links]
     _iniciar("Eliminar Todos CAD Links")
     for eid in ids:
         try:
@@ -203,7 +209,8 @@ def eliminar_todos_links_cad():
 
 def obtener_categoria_de_capa(instancia_cad, nombre_capa):
     """
-    Retorna el objeto Category correspondiente a un layer de una importacion CAD.
+    Retorna el objeto Category correspondiente a un layer de una importacion
+    CAD.
 
     Args:
         instancia_cad: ImportInstance de Revit

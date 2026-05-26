@@ -18,7 +18,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -43,9 +43,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -54,20 +54,26 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 def _pies_a_metros(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Meters)
 
+
 def _metros_a_pies(v):
     return UnitUtils.ConvertToInternalUnits(v, UnitTypeId.Meters)
+
 
 def _mm_a_pies(v):
     return UnitUtils.ConvertToInternalUnits(v, UnitTypeId.Millimeters)
 
+
 def _pies_a_mm(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Millimeters)
+
 
 def _pies2_a_m2(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.SquareMeters)
 
+
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
@@ -151,7 +157,10 @@ def obtener_muros_estructurales():
         .WhereElementIsNotElementType()
         .ToElements()
     )
-    return [m for m in muros if m.StructuralUsage != StructuralWallUsage.NonBearing]
+    return [
+        m for m in muros
+        if m.StructuralUsage != StructuralWallUsage.NonBearing
+    ]
 
 
 def obtener_cimentaciones():
@@ -321,9 +330,10 @@ def obtener_vigas_por_nivel(nivel):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
+    bip = BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM
     return [v for v in obtener_vigas()
-            if v.get_Parameter(BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM) is not None
-            and v.get_Parameter(BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM).AsElementId() == nivel.Id]
+            if v.get_Parameter(bip) is not None
+            and v.get_Parameter(bip).AsElementId() == nivel.Id]
 
 
 def obtener_area_forjado(forjado):
@@ -344,7 +354,8 @@ def obtener_area_forjado(forjado):
 
 def obtener_area_total_forjados():
     """
-    Retorna el area total de todos los forjados del documento en metros cuadrados.
+    Retorna el area total de todos los forjados del documento en metros
+    cuadrados.
 
     Args:
         (ninguno)
@@ -359,7 +370,8 @@ def obtener_area_total_forjados():
 
 def obtener_materiales_usados():
     """
-    Lista los nombres de materiales estructurales unicos usados en vigas y pilares.
+    Lista los nombres de materiales estructurales unicos usados en vigas
+    y pilares.
 
     Args:
         (ninguno)
@@ -416,7 +428,7 @@ def crear_pilar_inclinado(punto_base_xyz, punto_top_xyz, nivel, tipo_pilar_id):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     linea = Line.CreateBound(punto_base_xyz, punto_top_xyz)
-    tipo  = doc.GetElement(tipo_pilar_id)
+    tipo = doc.GetElement(tipo_pilar_id)
     tipo.Activate()
     _iniciar("Crear Pilar Inclinado")
     pilar = doc.Create.NewFamilyInstance(
@@ -427,13 +439,15 @@ def crear_pilar_inclinado(punto_base_xyz, punto_top_xyz, nivel, tipo_pilar_id):
 
 def obtener_propiedades_viga(viga):
     """
-    Retorna un diccionario con las propiedades estructurales clave de una viga.
+    Retorna un diccionario con las propiedades estructurales clave de una
+    viga.
 
     Args:
         viga: FamilyInstance de viga estructural
 
     Returns:
-        diccionario con extension_inicio, extension_fin, offset_y_m, offset_z_m, etc.
+        diccionario con extension_inicio, extension_fin, offset_y_m,
+        offset_z_m, etc.
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
@@ -480,8 +494,8 @@ def crear_armadura(elemento_anfitrion, tipo_barra_id, curvas,
         estilo = RebarStyle.Standard
     tipo_barra = doc.GetElement(tipo_barra_id)
     gancho_ini = doc.GetElement(gancho_inicio_id) if gancho_inicio_id else None
-    gancho_fin = doc.GetElement(gancho_fin_id)    if gancho_fin_id    else None
-    origen     = XYZ.BasisZ
+    gancho_fin = doc.GetElement(gancho_fin_id) if gancho_fin_id else None
+    origen = XYZ.BasisZ
     _iniciar("Crear Armadura")
     rebar = Rebar.CreateFromCurves(
         doc, estilo, tipo_barra, gancho_ini, gancho_fin,
@@ -491,10 +505,12 @@ def crear_armadura(elemento_anfitrion, tipo_barra_id, curvas,
     return rebar
 
 
-def distribuir_armadura_numero_fijo(rebar, num_barras, longitud_array_m,
-                                    lado_normal=True, incluir_primera=True, incluir_ultima=True):
+def distribuir_armadura_numero_fijo(
+        rebar, num_barras, longitud_array_m,
+        lado_normal=True, incluir_primera=True, incluir_ultima=True):
     """
-    Distribuye una armadura con numero fijo de barras a lo largo de una longitud.
+    Distribuye una armadura con numero fijo de barras a lo largo de una
+    longitud.
 
     Args:
         rebar: elemento Rebar de Revit
@@ -532,7 +548,8 @@ def obtener_armaduras_de_elemento(elemento):
             for rid in RebarHostData.GetRebarHostData(elemento).GetRebarIds()]
 
 
-def crear_armado_por_area(suelo, tipo_barra_id, tipo_gancho_id=None, direccion_xyz=None):
+def crear_armado_por_area(
+        suelo, tipo_barra_id, tipo_gancho_id=None, direccion_xyz=None):
     """
     Crea un AreaReinforcement en un suelo estructural.
 
@@ -550,7 +567,11 @@ def crear_armado_por_area(suelo, tipo_barra_id, tipo_gancho_id=None, direccion_x
     if direccion_xyz is None:
         direccion_xyz = XYZ(1, 0, 0)
     if tipo_gancho_id is None:
-        tipo_gancho_id = FilteredElementCollector(doc).OfClass(RebarHookType).FirstElementId()
+        tipo_gancho_id = (
+            FilteredElementCollector(doc)
+            .OfClass(RebarHookType)
+            .FirstElementId()
+        )
     _iniciar("Armado por Area")
     tipo_area_id = doc.GetElement(
         AreaReinforcementType.CreateDefaultAreaReinforcementType(doc)).Id
@@ -604,16 +625,19 @@ def crear_carga_puntual(punto_xyz, fuerza_xyz, momento_xyz=None, nivel=None):
         momento_xyz = XYZ.Zero
     tipo = FilteredElementCollector(doc).OfClass(PointLoadType).FirstElement()
     if nivel is None:
-        niveles = list(FilteredElementCollector(doc).OfClass(Level).ToElements())
-        nivel   = sorted(niveles, key=lambda l: l.Elevation)[0]
+        niveles = list(
+            FilteredElementCollector(doc).OfClass(Level).ToElements())
+        nivel = sorted(niveles, key=lambda niv: niv.Elevation)[0]
     plano = SketchPlane.Create(doc, nivel.Id)
     _iniciar("Crear Carga Puntual")
-    carga = PointLoad.Create(doc, punto_xyz, fuerza_xyz, momento_xyz, tipo, plano)
+    carga = PointLoad.Create(
+        doc, punto_xyz, fuerza_xyz, momento_xyz, tipo, plano)
     _finalizar()
     return carga
 
 
-def crear_carga_lineal(p1_xyz, p2_xyz, fuerza_xyz, momento_xyz=None, nivel=None):
+def crear_carga_lineal(
+        p1_xyz, p2_xyz, fuerza_xyz, momento_xyz=None, nivel=None):
     """
     Crea una carga lineal libre entre dos puntos.
 
@@ -633,11 +657,13 @@ def crear_carga_lineal(p1_xyz, p2_xyz, fuerza_xyz, momento_xyz=None, nivel=None)
         momento_xyz = XYZ.Zero
     tipo = FilteredElementCollector(doc).OfClass(LineLoadType).FirstElement()
     if nivel is None:
-        niveles = list(FilteredElementCollector(doc).OfClass(Level).ToElements())
-        nivel   = sorted(niveles, key=lambda l: l.Elevation)[0]
+        niveles = list(
+            FilteredElementCollector(doc).OfClass(Level).ToElements())
+        nivel = sorted(niveles, key=lambda niv: niv.Elevation)[0]
     plano = SketchPlane.Create(doc, nivel.Id)
     _iniciar("Crear Carga Lineal")
-    carga = LineLoad.Create(doc, p1_xyz, p2_xyz, fuerza_xyz, momento_xyz, tipo, plano)
+    carga = LineLoad.Create(
+        doc, p1_xyz, p2_xyz, fuerza_xyz, momento_xyz, tipo, plano)
     _finalizar()
     return carga
 
@@ -655,9 +681,9 @@ def crear_carga_superficial(contorno_curvas, fuerza_xyz):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tipo   = FilteredElementCollector(doc).OfClass(AreaLoadType).FirstElement()
+    tipo = FilteredElementCollector(doc).OfClass(AreaLoadType).FirstElement()
     lineas = List[Curve](contorno_curvas)  # noqa: F821
-    loop   = CurveLoop.Create(lineas)
+    loop = CurveLoop.Create(lineas)
     _iniciar("Crear Carga Superficial")
     carga = AreaLoad.Create(doc, [loop], fuerza_xyz, tipo)
     _finalizar()

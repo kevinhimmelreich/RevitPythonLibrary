@@ -18,7 +18,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -38,9 +38,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -49,17 +49,22 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
 
+
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
 
 
-def activar_worksharing(nombre_workset_arq="Rejillas", nombre_workset_struct="Subproyecto"):
+def activar_worksharing(
+        nombre_workset_arq="Rejillas",
+        nombre_workset_struct="Subproyecto"):
     """
     Activa el modo colaborativo del documento (operacion irreversible).
 
     Args:
-        nombre_workset_arq: nombre del primer workset a crear (por defecto "Rejillas")
-        nombre_workset_struct: nombre del segundo workset (por defecto "Subproyecto")
+        nombre_workset_arq: nombre del primer workset a crear
+            (por defecto "Rejillas")
+        nombre_workset_struct: nombre del segundo workset
+            (por defecto "Subproyecto")
 
     Returns:
         None
@@ -86,13 +91,14 @@ def guardar_como_central(ruta_archivo, max_backups=3, compactar=True):
     """
     ws_opts = WorksharingSaveAsOptions()
     ws_opts.SaveAsCentral = True
-    ws_opts.OpenWorksetsDefault = SimpleWorksetConfiguration.AskUserToSpecify
+    ws_opts.OpenWorksetsDefault = (
+        SimpleWorksetConfiguration.AskUserToSpecify)
 
     save_opts = SaveAsOptions()
-    save_opts.MaximumBackups       = max_backups
-    save_opts.Compact              = compactar
+    save_opts.MaximumBackups = max_backups
+    save_opts.Compact = compactar
     save_opts.OverwriteExistingFile = True
-    save_opts.PreviewViewId        = doc.ActiveView.Id
+    save_opts.PreviewViewId = doc.ActiveView.Id
     save_opts.SetWorksharingOptions(ws_opts)
 
     doc.SaveAs(ruta_archivo, save_opts)
@@ -114,18 +120,18 @@ def sincronizar_con_central(ceder_todo=True, compactar=True, comentario=""):
     """
     r_opts = RelinquishOptions(ceder_todo)
     if not ceder_todo:
-        r_opts.StandardWorksets   = True
-        r_opts.ViewWorksets       = True
-        r_opts.FamilyWorksets     = True
-        r_opts.UserWorksets       = True
+        r_opts.StandardWorksets = True
+        r_opts.ViewWorksets = True
+        r_opts.FamilyWorksets = True
+        r_opts.UserWorksets = True
         r_opts.CheckedOutElements = True
 
     s_opts = SynchronizeWithCentralOptions()
     s_opts.SetRelinquishOptions(r_opts)
-    s_opts.Compact         = compactar
-    s_opts.Comments        = comentario
+    s_opts.Compact = compactar
+    s_opts.Comments = comentario
     s_opts.SaveLocalBefore = True
-    s_opts.SaveLocalAfter  = True
+    s_opts.SaveLocalAfter = True
 
     doc.SynchronizeWithCentral(TransactWithCentralOptions(), s_opts)
 
@@ -163,7 +169,9 @@ def obtener_worksets():
     if not doc.IsWorkshared:
         return []
     filtro = WorksetKindFilter(WorksetKind.UserWorkset)
-    return list(FilteredWorksetCollector(doc).WherePasses(filtro).ToWorksets())
+    return list(
+        FilteredWorksetCollector(doc).WherePasses(filtro).ToWorksets()
+    )
 
 
 def asignar_workset_a_elemento(elemento, workset_id):
@@ -241,8 +249,11 @@ def abrir_documento(ruta_archivo, cerrar_worksets=True, detached=False):
     cfg = WorksetConfiguration(cfg_opt)
     opts.SetOpenWorksetsConfiguration(cfg)
     if detached:
-        opts.DetachFromCentralOption = DetachFromCentralOption.DetachAndPreserveWorksets  # noqa: F821
-    model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(ruta_archivo)
+        opts.DetachFromCentralOption = (
+            DetachFromCentralOption.DetachAndPreserveWorksets  # noqa: F821
+        )
+    model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(
+        ruta_archivo)
     return app.OpenDocumentFile(model_path, opts)
 
 

@@ -19,7 +19,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -41,9 +41,9 @@ import Revit
 clr.ImportExtensions(Revit.Elements)
 clr.ImportExtensions(Revit.GeometryConversion)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -52,17 +52,20 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 def _metros_a_pies(v):
     return UnitUtils.ConvertToInternalUnits(v, UnitTypeId.Meters)
 
+
 def _pies_a_metros(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Meters)
 
+
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
 
 
-# ── Curvas basicas ────────────────────────────────────────────────────────────
+# ── Curvas basicas ───────────────────────────────────────────────────────────
 
 def crear_linea(pt_inicio, pt_fin):
     """
@@ -80,7 +83,8 @@ def crear_linea(pt_inicio, pt_fin):
     return Line.CreateBound(pt_inicio, pt_fin)
 
 
-def crear_arco(centro, radio_m, angulo_inicio_deg, angulo_fin_deg, plano_normal=None):
+def crear_arco(centro, radio_m, angulo_inicio_deg, angulo_fin_deg,
+               plano_normal=None):
     """
     Crea un arco de Revit definido por centro, radio y angulos en grados.
 
@@ -137,14 +141,15 @@ def crear_nurbs_por_puntos(puntos_xyz, cerrada=False):
     lista = list(puntos_xyz)
     if cerrada and lista[0] != lista[-1]:
         lista.append(lista[0])
-    pts   = List[XYZ](lista)
+    pts = List[XYZ](lista)
     pesos = List[float]()
     for _ in lista:
         pesos.Add(1.0)
     return NurbSpline.CreateCurve(pts, pesos)
 
 
-def crear_curva_senoidal(n_puntos, amplitud_m, n_ciclos, longitud_onda_m, pos_y=0.0):
+def crear_curva_senoidal(n_puntos, amplitud_m, n_ciclos, longitud_onda_m,
+                         pos_y=0.0):
     """
     Genera una lista de puntos XYZ con forma senoidal para crear una spline.
 
@@ -161,14 +166,14 @@ def crear_curva_senoidal(n_puntos, amplitud_m, n_ciclos, longitud_onda_m, pos_y=
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     amp = _metros_a_pies(amplitud_m)
-    lo  = _metros_a_pies(longitud_onda_m)
+    lo = _metros_a_pies(longitud_onda_m)
     longitud_total = n_ciclos * lo
     x_vals = [i * longitud_total / (n_puntos - 1) for i in range(n_puntos)]
     z_vals = [amp * math.sin(2 * math.pi * xi / lo) for xi in x_vals]
     return [XYZ(xi, pos_y, zi) for xi, zi in zip(x_vals, z_vals)]
 
 
-# ── CurveLoop ─────────────────────────────────────────────────────────────────
+# ── CurveLoop ────────────────────────────────────────────────────────────────
 
 def crear_curveloop_desde_curvas(lista_curvas):
     """
@@ -218,8 +223,10 @@ def crear_offset_curveloop(curve_loop, distancia_m):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    normal = curve_loop.GetPlane().Normal if curve_loop.HasPlane() else XYZ.BasisZ
-    return CurveLoop.CreateViaOffset(curve_loop, _metros_a_pies(distancia_m), normal)
+    normal = (curve_loop.GetPlane().Normal
+              if curve_loop.HasPlane() else XYZ.BasisZ)
+    return CurveLoop.CreateViaOffset(
+        curve_loop, _metros_a_pies(distancia_m), normal)
 
 
 def ordenar_curvas_en_cadena(curvas, tolerancia=1e-6):
@@ -235,7 +242,7 @@ def ordenar_curvas_en_cadena(curvas, tolerancia=1e-6):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    loop  = CurveLoop()
+    loop = CurveLoop()
     copia = list(curvas)
     loop.Append(copia.pop(0))
     while copia:
@@ -249,7 +256,7 @@ def ordenar_curvas_en_cadena(curvas, tolerancia=1e-6):
     return loop
 
 
-# ── Solidos ───────────────────────────────────────────────────────────────────
+# ── Solidos ──────────────────────────────────────────────────────────────────
 
 def _loop_desde_puntos(puntos_xyz):
     loop = CurveLoop()
@@ -260,8 +267,9 @@ def _loop_desde_puntos(puntos_xyz):
 
 
 def _opciones_solido(material=None, estilo_grafico=None):
-    mat_id   = material.Id          if material       else ElementId.InvalidElementId
-    style_id = estilo_grafico.Id    if estilo_grafico else ElementId.InvalidElementId
+    mat_id = material.Id if material else ElementId.InvalidElementId
+    style_id = (estilo_grafico.Id
+                if estilo_grafico else ElementId.InvalidElementId)
     return SolidOptions(mat_id, style_id)
 
 
@@ -309,7 +317,8 @@ def crear_blend(loop_inferior, loop_superior, pares_vertices=None):
     else:
         pares = List[VertexPair](pares_vertices)
     opc = _opciones_solido()
-    return GeometryCreationUtilities.CreateBlendGeometry(loop_inferior, loop_superior, pares, opc)
+    return GeometryCreationUtilities.CreateBlendGeometry(
+        loop_inferior, loop_superior, pares, opc)
 
 
 def crear_barrido(perfil_loop, camino_loop, material=None):
@@ -348,9 +357,12 @@ def crear_barrido_doble(perfiles_loops, curva_camino, params_path=None):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     if params_path is None:
-        params_path = [curva_camino.GetEndParameter(0), curva_camino.GetEndParameter(1)]
+        params_path = [
+            curva_camino.GetEndParameter(0),
+            curva_camino.GetEndParameter(1),
+        ]
     perfiles = List[CurveLoop](perfiles_loops)
-    params   = List[float](params_path)
+    params = List[float](params_path)
     return GeometryCreationUtilities.CreateSweptBlendGeometry(
         curva_camino, params, perfiles, None)
 
@@ -368,16 +380,16 @@ def crear_esfera(centro_xyz, radio_m):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    r   = _metros_a_pies(radio_m)
-    sp  = centro_xyz.Subtract(XYZ.BasisZ.Multiply(r))
-    ep  = centro_xyz.Add(XYZ.BasisZ.Multiply(r))
-    pt  = centro_xyz.Add(XYZ.BasisX.Multiply(r))
+    r = _metros_a_pies(radio_m)
+    sp = centro_xyz.Subtract(XYZ.BasisZ.Multiply(r))
+    ep = centro_xyz.Add(XYZ.BasisZ.Multiply(r))
+    pt = centro_xyz.Add(XYZ.BasisX.Multiply(r))
     arc = Arc.Create(sp, ep, pt)
     loop = CurveLoop()
     loop.Append(arc)
     loop.Append(Line.CreateBound(ep, sp))
     frame = Frame(centro_xyz, XYZ.BasisX, XYZ.BasisY, XYZ.BasisZ)
-    opc   = SolidOptions(ElementId.InvalidElementId, ElementId.InvalidElementId)
+    opc = SolidOptions(ElementId.InvalidElementId, ElementId.InvalidElementId)
     return GeometryCreationUtilities.CreateRevolvedGeometry(
         frame, [loop], 0.0, 2.0 * math.pi, opc)
 
@@ -396,17 +408,18 @@ def crear_cilindro(centro_base_xyz, radio_m, altura_m):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    r     = _metros_a_pies(radio_m)
-    h     = _metros_a_pies(altura_m)
+    r = _metros_a_pies(radio_m)
+    h = _metros_a_pies(altura_m)
     plano = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, centro_base_xyz)
-    arc1  = Arc.Create(plano, r, 0.0, math.pi)
-    arc2  = Arc.Create(plano, r, math.pi, 2.0 * math.pi)
-    loop  = CurveLoop()
+    arc1 = Arc.Create(plano, r, 0.0, math.pi)
+    arc2 = Arc.Create(plano, r, math.pi, 2.0 * math.pi)
+    loop = CurveLoop()
     loop.Append(arc1)
     loop.Append(arc2)
     loops = List[CurveLoop]()
     loops.Add(loop)
-    return GeometryCreationUtilities.CreateExtrusionGeometry(loops, XYZ.BasisZ, h)
+    return GeometryCreationUtilities.CreateExtrusionGeometry(
+        loops, XYZ.BasisZ, h)
 
 
 def crear_cono(centro_base_xyz, radio_m, altura_m):
@@ -423,16 +436,16 @@ def crear_cono(centro_base_xyz, radio_m, altura_m):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    r      = _metros_a_pies(radio_m)
-    h      = _metros_a_pies(altura_m)
-    apex   = centro_base_xyz.Add(XYZ.BasisZ.Multiply(h))
+    r = _metros_a_pies(radio_m)
+    h = _metros_a_pies(altura_m)
+    apex = centro_base_xyz.Add(XYZ.BasisZ.Multiply(h))
     base_p = centro_base_xyz.Add(XYZ.BasisX.Multiply(r))
-    loop   = CurveLoop()
+    loop = CurveLoop()
     loop.Append(Line.CreateBound(apex, base_p))
     loop.Append(Line.CreateBound(base_p, centro_base_xyz))
     loop.Append(Line.CreateBound(centro_base_xyz, apex))
-    frame  = Frame(centro_base_xyz, XYZ.BasisX, XYZ.BasisY, XYZ.BasisZ)
-    opc    = SolidOptions(ElementId.InvalidElementId, ElementId.InvalidElementId)
+    frame = Frame(centro_base_xyz, XYZ.BasisX, XYZ.BasisY, XYZ.BasisZ)
+    opc = SolidOptions(ElementId.InvalidElementId, ElementId.InvalidElementId)
     return GeometryCreationUtilities.CreateRevolvedGeometry(
         frame, [loop], 0.0, 2.0 * math.pi, opc)
 
@@ -452,25 +465,27 @@ def crear_cono_truncado(centro_base_xyz, radio_inf_m, radio_sup_m, altura_m):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    rb   = _metros_a_pies(radio_inf_m)
-    rt   = _metros_a_pies(radio_sup_m)
-    h    = _metros_a_pies(altura_m)
-    p0   = centro_base_xyz
-    p1   = centro_base_xyz.Add(XYZ.BasisX.Multiply(rb))
-    p2   = centro_base_xyz.Add(XYZ.BasisZ.Multiply(h)).Add(XYZ.BasisX.Multiply(rt))
-    p3   = centro_base_xyz.Add(XYZ.BasisZ.Multiply(h))
+    rb = _metros_a_pies(radio_inf_m)
+    rt = _metros_a_pies(radio_sup_m)
+    h = _metros_a_pies(altura_m)
+    p0 = centro_base_xyz
+    p1 = centro_base_xyz.Add(XYZ.BasisX.Multiply(rb))
+    p2 = (centro_base_xyz.Add(XYZ.BasisZ.Multiply(h))
+          .Add(XYZ.BasisX.Multiply(rt)))
+    p3 = centro_base_xyz.Add(XYZ.BasisZ.Multiply(h))
     loop = CurveLoop()
     loop.Append(Line.CreateBound(p0, p1))
     loop.Append(Line.CreateBound(p1, p2))
     loop.Append(Line.CreateBound(p2, p3))
     loop.Append(Line.CreateBound(p3, p0))
     frame = Frame(centro_base_xyz, XYZ.BasisX, XYZ.BasisY, XYZ.BasisZ)
-    opc   = SolidOptions(ElementId.InvalidElementId, ElementId.InvalidElementId)
+    opc = SolidOptions(ElementId.InvalidElementId, ElementId.InvalidElementId)
     return GeometryCreationUtilities.CreateRevolvedGeometry(
         frame, [loop], 0.0, 2.0 * math.pi, opc)
 
 
-def crear_revolution(loop_perfil, angulo_inicio=0.0, angulo_fin=None, centro=None, material=None):
+def crear_revolution(loop_perfil, angulo_inicio=0.0, angulo_fin=None,
+                     centro=None, material=None):
     """
     Crea un solido de revolucion del perfil alrededor del eje Z local.
 
@@ -491,14 +506,15 @@ def crear_revolution(loop_perfil, angulo_inicio=0.0, angulo_fin=None, centro=Non
     if centro is None:
         centro = XYZ.Zero
     frame = Frame(centro, XYZ.BasisX, XYZ.BasisY, XYZ.BasisZ)
-    opc   = _opciones_solido(material)
+    opc = _opciones_solido(material)
     return GeometryCreationUtilities.CreateRevolvedGeometry(
         frame, [loop_perfil], angulo_inicio, angulo_fin, opc)
 
 
 def crear_directshape(geometrias, categoria_bic=None, nombre="DS"):
     """
-    Crea un DirectShape visible en el modelo a partir de una lista de GeometryObject.
+    Crea un DirectShape visible en el modelo a partir de una lista de
+    GeometryObject.
 
     Args:
         geometrias: lista de GeometryObject (Solid, Mesh, etc.)
@@ -514,14 +530,14 @@ def crear_directshape(geometrias, categoria_bic=None, nombre="DS"):
         categoria_bic = BuiltInCategory.OST_GenericModel
     _iniciar("Crear DirectShape")
     ds = DirectShape.CreateElement(doc, ElementId(categoria_bic))
-    ds.ApplicationId     = "RevitPythonLibrary"
+    ds.ApplicationId = "RevitPythonLibrary"
     ds.ApplicationDataId = nombre
     ds.SetShape(List[GeometryObject](geometrias))
     _finalizar()
     return ds
 
 
-# ── Operaciones booleanas ─────────────────────────────────────────────────────
+# ── Operaciones booleanas ────────────────────────────────────────────────────
 
 def booleano_union(solido_a, solido_b):
     """
@@ -597,12 +613,14 @@ def descomponer_solido(solido):
         "caras":     caras,
         "aristas":   aristas,
         "vertices":  vertices,
-        "volumen_m3": UnitUtils.ConvertFromInternalUnits(solido.Volume, UnitTypeId.CubicMeters),
-        "area_m2":    UnitUtils.ConvertFromInternalUnits(solido.SurfaceArea, UnitTypeId.SquareMeters),
+        "volumen_m3": UnitUtils.ConvertFromInternalUnits(
+            solido.Volume, UnitTypeId.CubicMeters),
+        "area_m2":    UnitUtils.ConvertFromInternalUnits(
+            solido.SurfaceArea, UnitTypeId.SquareMeters),
     }
 
 
-# ── Algoritmos geometricos ────────────────────────────────────────────────────
+# ── Algoritmos geometricos ───────────────────────────────────────────────────
 
 def obtener_bbox(elementos):
     """
@@ -654,7 +672,8 @@ def punto_mas_cercano_en_curva(punto_xyz, curva):
     res = curva.Project(punto_xyz)
     return {
         "punto_proyectado": res.XYZPoint,
-        "distancia_m":      UnitUtils.ConvertFromInternalUnits(res.Distance, UnitTypeId.Meters),
+        "distancia_m": UnitUtils.ConvertFromInternalUnits(
+            res.Distance, UnitTypeId.Meters),
         "parametro":        res.Parameter,
     }
 
@@ -681,24 +700,29 @@ def agrupar_puntos_por_proximidad(puntos, tolerancia_m):
 
     Args:
         puntos: lista de XYZ a agrupar
-        tolerancia_m: distancia maxima en metros para considerar puntos como vecinos
+        tolerancia_m: distancia maxima en metros para considerar puntos
+            como vecinos
 
     Returns:
         lista de grupos (cada grupo es una lista de XYZ)
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tol_pies = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
-    cola     = set()
+    tol_pies = UnitUtils.ConvertToInternalUnits(
+        tolerancia_m, UnitTypeId.Meters)
+    cola = set()
     pendientes = list(puntos)
-    grupos   = []
+    grupos = []
     while pendientes:
         grupo = []
         cola.add(pendientes.pop())
         while cola:
             actual = cola.pop()
             grupo.append(actual)
-            nuevos = [p for p in pendientes if actual.DistanceTo(p) <= tol_pies]
+            nuevos = [
+                p for p in pendientes
+                if actual.DistanceTo(p) <= tol_pies
+            ]
             cola.update(nuevos)
             pendientes = [p for p in pendientes if p not in cola]
         grupos.append(grupo)
@@ -711,17 +735,19 @@ def agrupar_curvas_conectadas(lista_curvas, tolerancia_m=0.01):
 
     Args:
         lista_curvas: lista de curvas Revit
-        tolerancia_m: tolerancia de distancia en metros para considerar curvas conectadas
+        tolerancia_m: tolerancia de distancia en metros para considerar
+            curvas conectadas
 
     Returns:
         lista de grupos de curvas conectadas
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    tol_pies  = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
-    cola      = set()
+    tol_pies = UnitUtils.ConvertToInternalUnits(
+        tolerancia_m, UnitTypeId.Meters)
+    cola = set()
     pendientes = list(lista_curvas)
-    grupos    = []
+    grupos = []
     while pendientes:
         forma = []
         cola.add(pendientes.pop())
@@ -740,7 +766,8 @@ def agrupar_curvas_conectadas(lista_curvas, tolerancia_m=0.01):
 
 def pathfinding_a_star(nodos, inicio, fin, distancia_max=1.125):
     """
-    Busqueda de ruta A* entre dos nodos sobre una grilla. Cada nodo debe tener .point, .G, .H, .parent.
+    Busqueda de ruta A* entre dos nodos sobre una grilla. Cada nodo debe
+    tener .point, .G, .H, .parent.
 
     Args:
         nodos: lista de nodos con atributos point (XYZ), G, H, parent
@@ -757,7 +784,10 @@ def pathfinding_a_star(nodos, inicio, fin, distancia_max=1.125):
         return math.hypot(n2.point.X - n1.point.X, n2.point.Y - n1.point.Y)
 
     def _vecinos(nodo, grilla, dmax):
-        return [c for c in grilla if 0 < nodo.point.DistanceTo(c.point) <= dmax]
+        return [
+            c for c in grilla
+            if 0 < nodo.point.DistanceTo(c.point) <= dmax
+        ]
 
     abiertos = set([inicio])
     cerrados = set()
@@ -780,8 +810,8 @@ def pathfinding_a_star(nodos, inicio, fin, distancia_max=1.125):
                 if vecino.G > nuevo_g:
                     vecino.parent = actual
             else:
-                vecino.G      = nuevo_g
-                vecino.H      = _dist(vecino, fin)
+                vecino.G = nuevo_g
+                vecino.H = _dist(vecino, fin)
                 vecino.parent = actual
                 abiertos.add(vecino)
     raise ValueError("A* no encontro ruta entre los nodos indicados.")

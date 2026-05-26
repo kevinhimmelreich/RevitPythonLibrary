@@ -19,7 +19,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -35,9 +35,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -45,6 +45,7 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
+
 
 def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
@@ -68,11 +69,12 @@ def _obtener_valor_param(param):
     return None
 
 
-# ── DSOffice (nativo Dynamo) ──────────────────────────────────────────────────
+# ── DSOffice (nativo Dynamo) ─────────────────────────────────────────────────
 
 def leer_excel_dsoffice(ruta, nombre_hoja, fila_inicio=0, col_inicio=0):
     """
-    Lee datos de Excel usando DSOffice (nativo Dynamo). Devuelve lista de listas.
+    Lee datos de Excel usando DSOffice (nativo Dynamo).
+    Devuelve lista de listas.
 
     Args:
         ruta: ruta completa al archivo .xlsx
@@ -90,7 +92,9 @@ def leer_excel_dsoffice(ruta, nombre_hoja, fila_inicio=0, col_inicio=0):
     return Data.OpenXLSX(ruta, nombre_hoja, fila_inicio, col_inicio, False)
 
 
-def escribir_excel_dsoffice(ruta, nombre_hoja, datos_2d, fila_inicio=0, col_inicio=0, sobreescribir=True):
+def escribir_excel_dsoffice(
+        ruta, nombre_hoja, datos_2d,
+        fila_inicio=0, col_inicio=0, sobreescribir=True):
     """
     Escribe datos en Excel usando DSOffice (nativo Dynamo).
 
@@ -109,7 +113,9 @@ def escribir_excel_dsoffice(ruta, nombre_hoja, datos_2d, fila_inicio=0, col_inic
     """
     clr.AddReference("DSOffice")
     from DSOffice import Data
-    Data.WriteToXLSX(datos_2d, ruta, nombre_hoja, fila_inicio, col_inicio, sobreescribir)
+    Data.WriteToXLSX(
+        datos_2d, ruta, nombre_hoja,
+        fila_inicio, col_inicio, sobreescribir)
     return True
 
 
@@ -130,11 +136,12 @@ def obtener_hojas_excel(ruta):
     return Data.GetWorksheetsFromXLSX(ruta)
 
 
-# ── COM Interop (requiere Microsoft Office instalado) ─────────────────────────
+# ── COM Interop (requiere Microsoft Office instalado) ────────────────────────
 
 def leer_excel_com(ruta, nombre_hoja=None, indice_hoja=1):
     """
-    Lee datos de Excel usando COM Interop (requiere Office instalado). Fuera de Dynamo.
+    Lee datos de Excel usando COM Interop (requiere Office instalado).
+    Fuera de Dynamo.
 
     Args:
         ruta: ruta completa al archivo .xlsx
@@ -156,7 +163,10 @@ def leer_excel_com(ruta, nombre_hoja=None, indice_hoja=1):
         usado = ws.UsedRange
         datos = []
         for i in range(1, usado.Rows.Count + 1):
-            fila = [ws.Cells[i, j].Value2 for j in range(1, usado.Columns.Count + 1)]
+            fila = [
+                ws.Cells[i, j].Value2
+                for j in range(1, usado.Columns.Count + 1)
+            ]
             datos.append(fila)
         wb.Close(False)
         return datos
@@ -164,9 +174,12 @@ def leer_excel_com(ruta, nombre_hoja=None, indice_hoja=1):
         xl.Quit()
 
 
-def escribir_excel_com(ruta, datos_2d, nombre_hoja="Hoja1", fila_inicio=1, col_inicio=1):
+def escribir_excel_com(
+        ruta, datos_2d, nombre_hoja="Hoja1",
+        fila_inicio=1, col_inicio=1):
     """
-    Escribe datos en Excel usando COM Interop (requiere Office instalado). Fuera de Dynamo.
+    Escribe datos en Excel usando COM Interop (requiere Office instalado).
+    Fuera de Dynamo.
 
     Args:
         ruta: ruta completa al archivo .xlsx
@@ -185,7 +198,8 @@ def escribir_excel_com(ruta, datos_2d, nombre_hoja="Hoja1", fila_inicio=1, col_i
     xl = _Excel.ApplicationClass()
     xl.Visible = False
     try:
-        wb = xl.Workbooks.Open(ruta) if os.path.exists(ruta) else xl.Workbooks.Add()
+        wb = (xl.Workbooks.Open(ruta) if os.path.exists(ruta)
+              else xl.Workbooks.Add())
         try:
             ws = wb.Sheets[nombre_hoja]
         except Exception:
@@ -247,11 +261,13 @@ def cerrar_excel_com(excel_app, guardar=False):
         pass
 
 
-# ── Integracion Revit <-> Excel ───────────────────────────────────────────────
+# ── Integracion Revit <-> Excel ──────────────────────────────────────────────
 
-def exportar_parametros_a_excel(elementos, nombres_params, ruta_salida, nombre_hoja="Datos"):
+def exportar_parametros_a_excel(
+        elementos, nombres_params, ruta_salida, nombre_hoja="Datos"):
     """
-    Exporta una lista de elementos Revit con sus parametros a Excel via DSOffice.
+    Exporta una lista de elementos Revit con sus parametros a Excel
+    via DSOffice.
 
     Args:
         elementos: lista de elementos Revit
@@ -265,7 +281,7 @@ def exportar_parametros_a_excel(elementos, nombres_params, ruta_salida, nombre_h
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     cabecera = ["ElementId", "UniqueId", "Categoria"] + list(nombres_params)
-    filas    = [cabecera]
+    filas = [cabecera]
     for elem in elementos:
         try:
             eid_int = int(elem.Id.Value)
@@ -283,15 +299,18 @@ def exportar_parametros_a_excel(elementos, nombres_params, ruta_salida, nombre_h
     return escribir_excel_dsoffice(ruta_salida, nombre_hoja, filas)
 
 
-def importar_parametros_desde_excel(ruta_excel, nombre_hoja, id_col=0, datos_col=None):
+def importar_parametros_desde_excel(
+        ruta_excel, nombre_hoja, id_col=0, datos_col=None):
     """
-    Lee un Excel exportado con exportar_parametros_a_excel y aplica valores a los elementos Revit.
+    Lee un Excel exportado con exportar_parametros_a_excel y aplica valores
+    a los elementos Revit.
 
     Args:
         ruta_excel: ruta completa al archivo .xlsx
         nombre_hoja: nombre de la hoja a leer
         id_col: indice de la columna con el ElementId (0-based)
-        datos_col: dict {nombre_param: indice_col} (si None usa la cabecera)
+        datos_col: dict {nombre_param: indice_col}
+            (si None usa la cabecera)
 
     Returns:
         diccionario {ok: [ids], error: [ids]}
@@ -333,9 +352,11 @@ def importar_parametros_desde_excel(ruta_excel, nombre_hoja, id_col=0, datos_col
     return resultados
 
 
-def exportar_schedule_a_excel(nombre_schedule, ruta_salida, nombre_hoja="Schedule"):
+def exportar_schedule_a_excel(
+        nombre_schedule, ruta_salida, nombre_hoja="Schedule"):
     """
-    Exporta una tabla de planificacion Revit directamente a Excel via DSOffice.
+    Exporta una tabla de planificacion Revit directamente a Excel
+    via DSOffice.
 
     Args:
         nombre_schedule: nombre de la ViewSchedule de Revit
@@ -343,11 +364,14 @@ def exportar_schedule_a_excel(nombre_schedule, ruta_salida, nombre_hoja="Schedul
         nombre_hoja: nombre de la hoja de destino
 
     Returns:
-        True si la exportacion fue exitosa, None si no se encontro la schedule
+        True si la exportacion fue exitosa, None si no se encontro la
+        schedule
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    schedules = list(FilteredElementCollector(doc).OfClass(ViewSchedule).ToElements())
+    schedules = list(
+        FilteredElementCollector(doc).OfClass(ViewSchedule).ToElements()
+    )
     sch = next((s for s in schedules if s.Name == nombre_schedule), None)
     if sch is None:
         return None
@@ -361,7 +385,7 @@ def exportar_schedule_a_excel(nombre_schedule, ruta_salida, nombre_hoja="Schedul
     return escribir_excel_dsoffice(ruta_salida, nombre_hoja, filas)
 
 
-# ── pandas (CPython 3.x / Dynamo 2.13+) ──────────────────────────────────────
+# ── pandas (CPython 3.x / Dynamo 2.13+) ─────────────────────────────────────
 
 def leer_excel_pandas(ruta, nombre_hoja=0):
     """

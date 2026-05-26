@@ -18,7 +18,7 @@ else:
     string_types = (str, unicode)  # noqa: F821
     text_type = unicode            # noqa: F821
 
-# ── Revit API ─────────────────────────────────────────────────────────────────
+# ── Revit API ────────────────────────────────────────────────────────────────
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
@@ -33,9 +33,9 @@ from RevitServices.Transactions import TransactionManager
 import Revit
 clr.ImportExtensions(Revit.Elements)
 
-doc   = DocumentManager.Instance.CurrentDBDocument
+doc = DocumentManager.Instance.CurrentDBDocument
 uiapp = DocumentManager.Instance.CurrentUIApplication
-app   = uiapp.Application
+app = uiapp.Application
 uidoc = uiapp.ActiveUIDocument
 
 REVIT_VERSION = int(app.VersionNumber) if app else 0
@@ -43,11 +43,13 @@ REVIT_VERSION = int(app.VersionNumber) if app else 0
 
 def ejecutar_en_grupo(nombre_grupo, lista_funciones):
     """
-    Ejecuta varias funciones dentro de un TransactionGroup. Confirma con Assimilate.
+    Ejecuta varias funciones dentro de un TransactionGroup.
+    Confirma con Assimilate.
 
     Args:
         nombre_grupo: nombre del grupo de transacciones como string
-        lista_funciones: lista de tuplas (callable, *args) a ejecutar en el grupo
+        lista_funciones: lista de tuplas (callable, *args) a ejecutar
+            en el grupo
 
     Returns:
         lista de resultados de cada funcion
@@ -59,7 +61,7 @@ def ejecutar_en_grupo(nombre_grupo, lista_funciones):
     resultados = []
     try:
         for item in lista_funciones:
-            fn   = item[0]
+            fn = item[0]
             args = item[1:] if len(item) > 1 else ()
             resultados.append(fn(*args))
         grupo.Assimilate()
@@ -77,7 +79,8 @@ def iniciar_transaccion_nativa(nombre):
         nombre: nombre de la transaccion como string
 
     Returns:
-        objeto Transaction iniciado (necesario para pasarlo a finalizar_transaccion_nativa)
+        objeto Transaction iniciado (necesario para pasarlo a
+        finalizar_transaccion_nativa)
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
@@ -133,7 +136,8 @@ def ejecutar_subtransaccion(nombre, fn, *args):
 
 def transaccion_nativa(nombre, fn, *args):
     """
-    Ejecuta una funcion dentro de una Transaction nativa con RollBack automatico en caso de error.
+    Ejecuta una funcion dentro de una Transaction nativa con RollBack
+    automatico en caso de error.
 
     Args:
         nombre: nombre de la transaccion como string
@@ -159,10 +163,12 @@ def transaccion_nativa(nombre, fn, *args):
 def forzar_cierre_transacciones(doc_objetivo=None):
     """
     Fuerza el cierre de todas las transacciones Dynamo activas.
-    Usar solo cuando sea estrictamente necesario (ej. al abrir documentos secundarios).
+    Usar solo cuando sea estrictamente necesario (ej. al abrir documentos
+    secundarios).
 
     Args:
-        doc_objetivo: documento Revit (ignorado, actua sobre el TransactionManager global)
+        doc_objetivo: documento Revit (ignorado, actua sobre el
+            TransactionManager global)
 
     Returns:
         None
@@ -192,7 +198,8 @@ def eliminar_elemento_en_subtransaccion(elemento):
 
 def comparar_documentos(ruta_otro_doc):
     """
-    Revit 2023+: compara el documento activo con otro por ruta y retorna diferencias.
+    Revit 2023+: compara el documento activo con otro por ruta y retorna
+    diferencias.
 
     Args:
         ruta_otro_doc: ruta completa al otro archivo .rvt
@@ -203,8 +210,8 @@ def comparar_documentos(ruta_otro_doc):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     otro_doc = app.OpenDocumentFile(ruta_otro_doc)
-    guid     = otro_doc.GetDocumentVersion().VersionGUID
-    dif      = doc.GetChangedElements(guid)
+    guid = otro_doc.GetDocumentVersion().VersionGUID
+    dif = doc.GetChangedElements(guid)
     return (
         list(dif.GetCreatedElementIds()),
         list(dif.GetModifiedElementIds()),
