@@ -255,6 +255,90 @@ def ordenar_curvas_en_cadena(curvas, tolerancia=1e-6):
     return loop
 
 
+def ordenar_curvas_conectadas(curvas, tolerancia_m=0.01):
+    """
+    Ordena una lista desordenada de curvas en una cadena continua
+    haciendo coincidir los extremos. Invierte curvas cuando es necesario.
+    A diferencia de ordenar_curvas_en_cadena, maneja reversiones y
+    retorna una lista (no CurveLoop) para mayor flexibilidad.
+
+    Args:
+        curvas: lista de curvas Revit desordenadas
+        tolerancia_m: tolerancia de union en metros (por defecto 0.01)
+
+    Returns:
+        lista ordenada de curvas Revit con orientacion correcta
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if not curvas:
+        return []
+    tol = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
+    pendientes = list(curvas)
+    ordenadas = [pendientes.pop(0)]
+    while pendientes:
+        fin = ordenadas[-1].GetEndPoint(1)
+        encontrado = False
+        for i, c in enumerate(pendientes):
+            if fin.DistanceTo(c.GetEndPoint(0)) <= tol:
+                ordenadas.append(pendientes.pop(i))
+                encontrado = True
+                break
+            if fin.DistanceTo(c.GetEndPoint(1)) <= tol:
+                ordenadas.append(c.CreateReversed())
+                pendientes.pop(i)
+                encontrado = True
+                break
+        if not encontrado:
+            ordenadas.extend(pendientes)
+            break
+    return ordenadas
+
+
+def combinar_perimetros(curvas_a, curvas_b, tolerancia_m=0.01):
+    """
+    Combina dos contornos de curvas eliminando los segmentos compartidos
+    y retornando el perimetro exterior unido y ordenado.
+
+    Caso de uso tipico: contorno de una habitacion (curvas_a) mas el
+    area de umbral de una puerta (curvas_b) para crear un suelo que
+    cubra ambas superficies.
+
+    Args:
+        curvas_a: lista de curvas Revit (primer contorno)
+        curvas_b: lista de curvas Revit (segundo contorno)
+        tolerancia_m: tolerancia de coincidencia en metros
+
+    Returns:
+        lista de curvas Revit ordenadas del perimetro combinado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    tol = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
+
+    def _coinciden(c1, c2):
+        a0, a1 = c1.GetEndPoint(0), c1.GetEndPoint(1)
+        b0, b1 = c2.GetEndPoint(0), c2.GetEndPoint(1)
+        return (
+            (a0.DistanceTo(b0) <= tol and a1.DistanceTo(b1) <= tol) or
+            (a0.DistanceTo(b1) <= tol and a1.DistanceTo(b0) <= tol)
+        )
+
+    restantes_b = list(curvas_b)
+    resultado = []
+    for ca in curvas_a:
+        compartida = False
+        for i, cb in enumerate(restantes_b):
+            if _coinciden(ca, cb):
+                compartida = True
+                restantes_b.pop(i)
+                break
+        if not compartida:
+            resultado.append(ca)
+    resultado.extend(restantes_b)
+    return ordenar_curvas_conectadas(resultado, tolerancia_m)
+
+
 # ── Solidos ──────────────────────────────────────────────────────────────────
 
 def _loop_desde_puntos(puntos_xyz):

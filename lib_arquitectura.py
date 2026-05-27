@@ -193,6 +193,34 @@ def obtener_contorno_habitacion(habitacion):
     return elementos, curvas
 
 
+def obtener_curveloops_habitacion(habitacion):
+    """
+    Retorna el contorno de una habitacion como lista de CurveLoop,
+    uno por cada loop de limite (exterior e islas interiores).
+
+    Args:
+        habitacion: Room de Revit
+
+    Returns:
+        lista de CurveLoop con los limites de la habitacion
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    opciones = SpatialElementBoundaryOptions()
+    opciones.SpatialElementBoundaryLocation = (
+        SpatialElementBoundaryLocation.Finish)
+    loops = []
+    for segmentos in habitacion.GetBoundarySegments(opciones):
+        loop = CurveLoop()
+        for seg in segmentos:
+            try:
+                loop.Append(seg.GetCurve())
+            except AttributeError:
+                loop.Append(seg.Curve)
+        loops.append(loop)
+    return loops
+
+
 def calcular_volumen_habitacion(habitacion):
     """
     Calcula el volumen de una habitacion en metros cubicos.
@@ -645,6 +673,34 @@ def crear_suelo(lineas_contorno, tipo_suelo_id, nivel):
             curva_array, tipo_suelo_id, nivel, False)
     _finalizar()
     return suelo
+
+
+def crear_suelo_desde_habitacion(
+        habitacion, tipo_suelo_id, curvas_extra=None, tolerancia_m=0.01):
+    """
+    Crea un suelo a partir del contorno de una habitacion, combinando
+    opcionalmente curvas adicionales como umbrales de puertas.
+
+    Flujo tipico: habitacion con puerta → contorno de habitacion + linea
+    del umbral de puerta → suelo que cubre habitacion y umbral.
+
+    Args:
+        habitacion: Room de Revit
+        tipo_suelo_id: ElementId del FloorType
+        curvas_extra: lista de curvas Revit adicionales (umbrales, etc.)
+        tolerancia_m: tolerancia de coincidencia al combinar contornos
+
+    Returns:
+        Floor creado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from lib_geometria import combinar_perimetros  # noqa: E402
+    _, curvas_base = obtener_contorno_habitacion(habitacion)
+    if curvas_extra:
+        curvas_base = combinar_perimetros(
+            curvas_base, list(curvas_extra), tolerancia_m)
+    return crear_suelo(curvas_base, tipo_suelo_id, habitacion.Level)
 
 
 def crear_abertura_suelo(suelo, lineas_contorno):

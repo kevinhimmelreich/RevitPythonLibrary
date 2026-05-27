@@ -8,7 +8,6 @@ Repositorio: https://github.com/kevinhimmelreich/RevitPythonLibrary
 
 import clr
 import sys
-import io
 
 # ── Compatibilidad Python 2/3 ────────────────────────────────────────────────
 PY3 = sys.version_info[0] >= 3
@@ -26,7 +25,7 @@ clr.AddReference("RevitServices")
 clr.AddReference("RevitNodes")
 
 from Autodesk.Revit.DB import (  # noqa: E402
-    FilteredElementCollector, ElementId, StorageType,
+    FilteredElementCollector, StorageType,
     ElementTransformUtils, UnitUtils, UnitTypeId
 )
 from RevitServices.Persistence import DocumentManager  # noqa: E402
@@ -403,3 +402,88 @@ def obtener_ids_int(elementos):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     return [id_a_int(e.Id) for e in elementos]
+
+
+def filtrar_por_valor_parametro(categoria_bic, nombre_param, valor):
+    """
+    Colecta todos los elementos de una categoria y los filtra por el
+    valor de un parametro de instancia. La comparacion se hace como
+    cadena de texto para compatibilidad con cualquier StorageType.
+
+    Args:
+        categoria_bic: BuiltInCategory de Revit
+        nombre_param: nombre del parametro como string
+        valor: valor a buscar
+
+    Returns:
+        lista de elementos cuyo parametro coincide con el valor dado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    elementos = list(
+        FilteredElementCollector(doc)
+        .OfCategory(categoria_bic)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    valor_str = str(valor)
+    return [
+        e for e in elementos
+        if str(obtener_valor_parametro(e, nombre_param)) == valor_str
+    ]
+
+
+def aplanar_lista(lista):
+    """
+    Aplana recursivamente una lista anidada de cualquier profundidad.
+
+    Args:
+        lista: lista potencialmente anidada (listas o tuplas internas)
+
+    Returns:
+        lista plana con todos los elementos en orden de aparicion
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    resultado = []
+    for item in lista:
+        if isinstance(item, (list, tuple)):
+            resultado.extend(aplanar_lista(item))
+        else:
+            resultado.append(item)
+    return resultado
+
+
+def obtener_parametros_tipo(elemento):
+    """
+    Retorna los parametros de TIPO de un elemento como dict {nombre: valor}.
+    Complementa a obtener_todos_parametros que devuelve los de instancia.
+
+    Args:
+        elemento: elemento Revit
+
+    Returns:
+        diccionario {nombre_parametro: valor} de los parametros del tipo,
+        o dict vacio si el elemento no tiene tipo
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    tipo = doc.GetElement(elemento.GetTypeId())
+    if tipo is None:
+        return {}
+    resultado = {}
+    for param in tipo.Parameters:
+        nombre = param.Definition.Name
+        try:
+            t = param.StorageType
+            if t == StorageType.String:
+                resultado[nombre] = param.AsString()
+            elif t == StorageType.Integer:
+                resultado[nombre] = param.AsInteger()
+            elif t == StorageType.Double:
+                resultado[nombre] = param.AsDouble()
+            elif t == StorageType.ElementId:
+                resultado[nombre] = id_a_int(param.AsElementId())
+        except Exception:
+            resultado[nombre] = None
+    return resultado
