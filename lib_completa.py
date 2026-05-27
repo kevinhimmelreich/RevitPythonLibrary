@@ -23,7 +23,8 @@ from lib_cad import *            # noqa: F401,F403
 from lib_excel import *          # noqa: F401,F403
 from lib_bases_datos import *    # noqa: F401,F403
 from lib_colaborativo import *   # noqa: F401,F403
-from lib_transacciones import *  # noqa: F401,F403
-from lib_seleccion_ui import *   # noqa: F401,F403
-from lib_scientific import *     # noqa: F401,F403
-from lib_ui import *             # noqa: F401,F403
+from lib_transformaciones import *  # noqa: F401,F403
+from lib_transacciones import *     # noqa: F401,F403
+from lib_seleccion_ui import *      # noqa: F401,F403
+from lib_scientific import *        # noqa: F401,F403
+from lib_ui import *                # noqa: F401,F403

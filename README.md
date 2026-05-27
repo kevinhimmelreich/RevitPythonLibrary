@@ -16,6 +16,7 @@ Derivada y refactorizada a partir de `LibreriaFunciones.py` (Kevin Himmelreich).
 | Archivo | Contenido |
 |---|---|
 | `lib_general.py` | Unwrap, transacciones, parametros, conversiones de unidades, utilidades Python |
+| `lib_transformaciones.py` | Mover, copiar, rotar, espejar, voltear, anclar, orientacion, transform math |
 | `lib_coordinacion.py` | Niveles, advertencias, worksets, links Revit, colisiones, exportacion CSV |
 | `lib_arquitectura.py` | Habitaciones, muros, suelos, carpinteria, areas, barandillas |
 | `lib_instalaciones.py` | Conductos, tuberias, bandejas, conduits, equipos MEP, luminarias |
@@ -78,12 +79,10 @@ from lib_arquitectura import obtener_habitaciones, crear_suelo_desde_habitacion
 | `m2_a_pies2(v)` | Convierte m2 a pies2 internos |
 | `pies2_a_m2(v)` | Convierte pies2 internos a m2 |
 
-#### Transformaciones de elementos
+#### Eliminar elementos
 
 | Funcion | Descripcion |
 |---|---|
-| `copiar_elemento(elem, vector_xyz)` | Copia un elemento desplazado por un vector |
-| `mover_elemento(elem, vector_xyz)` | Mueve un elemento por un vector |
 | `eliminar_elemento(elem)` | Elimina un elemento del documento |
 
 #### Filtros avanzados (BoundingBox y logicos)
@@ -118,6 +117,107 @@ from lib_arquitectura import obtener_habitaciones, crear_suelo_desde_habitacion
 | `crear_eje(p1, p2, nombre)` | Crea un Grid (eje de proyecto) entre dos puntos |
 | `obtener_ejes()` | Todos los Grid del documento |
 | `obtener_planos_referencia()` | Todos los ReferencePlane del documento |
+
+---
+
+### lib_transformaciones — Transformaciones y movimiento
+
+#### Ubicacion de elementos
+
+| Funcion | Descripcion |
+|---|---|
+| `obtener_ubicacion(elem)` | Location raw del elemento (LocationPoint o LocationCurve) |
+| `obtener_punto_ubicacion(elem)` | XYZ del punto de insercion (LocationPoint) |
+| `obtener_curva_ubicacion(elem)` | Curva de ubicacion (LocationCurve) |
+| `obtener_rotacion_ubicacion(elem)` | Angulo de rotacion en grados (LocationPoint.Rotation) |
+| `obtener_angulo_desde_hand_orientation(instancia)` | Angulo en grados del vector HandOrientation en planta |
+| `establecer_punto_ubicacion(elem, punto_xyz)` | Asigna directamente el punto de insercion |
+| `establecer_curva_ubicacion(elem, curva)` | Asigna directamente la curva de ubicacion |
+
+#### Mover
+
+| Funcion | Descripcion |
+|---|---|
+| `mover_elemento(elem, vector_xyz)` | Mueve un elemento por un vector XYZ en pies |
+| `mover_elemento_m(elem, dx_m, dy_m, dz_m)` | Mueve un elemento por desplazamientos en metros |
+| `mover_elementos(lista_elems, vector_xyz)` | Mueve varios elementos con un solo comando |
+| `alinear_a_punto(elem, punto_xyz)` | Mueve el elemento para que su LocationPoint coincida con el punto |
+
+#### Copiar
+
+| Funcion | Descripcion |
+|---|---|
+| `copiar_elemento(elem, vector_xyz)` | Copia un elemento desplazado por un vector |
+| `copiar_elementos(lista_elems, vector_xyz)` | Copia varios elementos con un desplazamiento |
+| `copiar_elemento_a_nivel(elem, nivel_destino)` | Copia el elemento al nivel destino ajustando Z |
+| `copiar_elementos_entre_documentos(elems, doc_destino, tf)` | Copia elementos a otro documento con transformacion opcional |
+
+#### Rotar
+
+| Funcion | Descripcion |
+|---|---|
+| `rotar_elemento(elem, eje_linea, angulo_grados)` | Rota un elemento alrededor de un eje Line |
+| `rotar_elemento_en_propio_punto(elem, angulo_grados)` | Rota el elemento alrededor de su LocationPoint (eje Z) |
+| `rotar_elementos(lista_elems, eje_linea, angulo_grados)` | Rota varios elementos alrededor del mismo eje |
+| `rotar_vista(vista, angulo_grados)` | Rota una vista de planta alrededor de su centro |
+
+#### Espejar
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_plano_espejo(normal_xyz, origen_xyz)` | Crea un Plane por normal y origen para usar como espejo |
+| `espejar_elementos(lista_elems, normal_xyz, origen_xyz, crear_copia)` | Espeja elementos; crear_copia=False hace mirror in-place |
+| `espejar_elemento(elem, normal_xyz, origen_xyz, crear_copia)` | Espeja un unico elemento |
+
+#### Voltear (Flip)
+
+| Funcion | Descripcion |
+|---|---|
+| `voltear_elemento(instancia)` | Voltea la instancia con el flip principal disponible |
+| `voltear_cara(instancia)` | Flip de la cara (FacingOrientation) — flipFacing / FlipFacing |
+| `voltear_mano(instancia)` | Flip de la mano (HandOrientation) — flipHand / FlipHand |
+| `voltear_extremos_viga(viga)` | Invierte los extremos de una viga estructural (FlipEnds) |
+
+#### Anclar
+
+| Funcion | Descripcion |
+|---|---|
+| `anclar_elemento(elem)` | Fija (pina) un elemento para que no se mueva |
+| `desanclar_elemento(elem)` | Libera el elemento anclado |
+| `esta_anclado(elem)` | True si el elemento esta anclado |
+| `anclar_lista(elems, anclar)` | Ancla o desancla una lista de elementos |
+
+#### Orientacion y estado de flip
+
+| Funcion | Descripcion |
+|---|---|
+| `obtener_orientacion_mano(instancia)` | Vector HandOrientation de la instancia |
+| `obtener_orientacion_cara(instancia)` | Vector FacingOrientation de la instancia |
+| `obtener_esta_espejado(instancia)` | True si la instancia esta espejada (Mirrored) |
+| `obtener_esta_volteado_cara(instancia)` | True si FacingFlipped es True |
+| `obtener_esta_volteado_mano(instancia)` | True si HandFlipped es True |
+| `obtener_orientacion_completa(instancia)` | Dict con mano, cara, espejado, flip_cara, flip_mano |
+
+#### Matematica de Transform
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_transform_traslacion(vector_xyz)` | Transform de traslacion pura |
+| `crear_transform_rotacion(origen_xyz, eje_xyz, angulo_grados)` | Transform de rotacion alrededor de eje en origen |
+| `crear_transform_por_ejes(origen_xyz, eje_x, eje_y, eje_z)` | Transform a partir de origen y vectores de eje |
+| `transformar_punto(punto_xyz, transform)` | Aplica un Transform a un punto XYZ |
+| `transformar_vector(vector_xyz, transform)` | Aplica un Transform a un vector (sin traslacion) |
+| `invertir_transform(transform)` | Inverse de un Transform |
+| `combinar_transforms(t1, t2)` | Composicion de dos Transform (t1 primero, t2 segundo) |
+| `obtener_transform_elemento(instancia)` | Transform de un elemento vinculado o instancia de familia |
+
+#### Utilidades geometricas
+
+| Funcion | Descripcion |
+|---|---|
+| `vector_entre_puntos(p1_xyz, p2_xyz)` | Vector XYZ normalizado de p1 a p2 |
+| `distancia_entre_puntos_m(p1_xyz, p2_xyz)` | Distancia entre dos XYZ en metros |
+| `centroide_bbox(elem)` | Centroide del BoundingBox de un elemento |
 
 ---
 
