@@ -24,13 +24,13 @@ clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
 clr.AddReference("RevitNodes")
 
-from Autodesk.Revit.DB import (
+from Autodesk.Revit.DB import (  # noqa: E402
     FilteredElementCollector, ImportInstance, Options, XYZ
 )
-from RevitServices.Persistence import DocumentManager
-from RevitServices.Transactions import TransactionManager
+from RevitServices.Persistence import DocumentManager  # noqa: E402
+from RevitServices.Transactions import TransactionManager  # noqa: E402
 
-import Revit
+import Revit  # noqa: E402
 clr.ImportExtensions(Revit.Elements)
 
 doc = DocumentManager.Instance.CurrentDBDocument
@@ -49,21 +49,25 @@ def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
 
 
-def obtener_todos_links_cad():
+def clasificar_links_cad():
     """
-    Retorna todas las instancias de importacion/link CAD del documento.
+    Clasifica las instancias CAD del documento en enlazadas e importadas.
 
     Args:
         (ninguno)
 
     Returns:
-        lista de ImportInstance
+        dict {"enlazadas": [...], "importadas": [...]} de ImportInstance
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return list(
+    instancias = list(
         FilteredElementCollector(doc).OfClass(ImportInstance).ToElements()
     )
+    return {
+        "enlazadas": [i for i in instancias if i.IsLinked],
+        "importadas": [i for i in instancias if not i.IsLinked],
+    }
 
 
 def obtener_nombres_capas_cad(instancia_cad):
@@ -195,7 +199,9 @@ def eliminar_todos_links_cad():
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    links = obtener_todos_links_cad()
+    links = list(
+        FilteredElementCollector(doc).OfClass(ImportInstance).ToElements()
+    )
     ids = [enlace.Id for enlace in links]
     _iniciar("Eliminar Todos CAD Links")
     for eid in ids:

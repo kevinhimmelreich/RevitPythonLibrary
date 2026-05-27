@@ -25,22 +25,20 @@ clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
 clr.AddReference("RevitNodes")
 
-from System.Collections.Generic import List
-from Autodesk.Revit.DB import (
-    FilteredElementCollector, ElementId, Level, View, ViewSheet, ViewPlan,
-    ViewSection, View3D, ViewFamilyType, ViewFamily, ViewDuplicateOption,
-    Viewport, UV, XYZ, BoundingBoxXYZ, Transform, Phase, Group,
-    RevitLinkInstance, ImportInstance, BuiltInCategory, BuiltInParameter,
-    WorksetKindFilter, WorksetKind, FilteredWorksetCollector, CategoryType,
-    ImageExportOptions, ExportRange, ImageResolution, ImageFileType,
-    OverrideGraphicSettings, Color, ElementTransformUtils, FamilySymbol,
-    ElevationMarker
-)
-from Autodesk.Revit.DB import UnitUtils, UnitTypeId
-from RevitServices.Persistence import DocumentManager
-from RevitServices.Transactions import TransactionManager
+from System.Collections.Generic import List  # noqa: E402
 
-import Revit
+from Autodesk.Revit.DB import (  # noqa: E402
+    FilteredElementCollector, ElementId, Level, XYZ,
+    BuiltInParameter,
+    WorksetKindFilter, WorksetKind, FilteredWorksetCollector,
+    WorksetDefaultVisibilitySettings, CategoryType,
+    RevitLinkInstance, RevitLinkType, ElementMulticategoryFilter,
+    ElementTransformUtils, UnitUtils, UnitTypeId, Autodesk
+)
+from RevitServices.Persistence import DocumentManager  # noqa: E402
+from RevitServices.Transactions import TransactionManager  # noqa: E402
+
+import Revit  # noqa: E402
 clr.ImportExtensions(Revit.Elements)
 
 doc = DocumentManager.Instance.CurrentDBDocument
@@ -59,190 +57,490 @@ def _pies_a_metros(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.Meters)
 
 
-def _iniciar_transaccion(nombre="Transaccion"):
+def _iniciar():
     TransactionManager.Instance.EnsureInTransaction(doc)
 
 
-def _finalizar_transaccion():
+def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
 
 
-def obtener_documento_activo():
-    """
-    Retorna el documento Revit activo del DocumentManager.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        Document de Revit activo
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return DocumentManager.Instance.CurrentDBDocument
-
-
-def obtener_todos_los_elementos(categoria=None):
-    """
-    Colecta todos los elementos de instancia del documento, filtrados
-    opcionalmente por categoria.
-
-    Args:
-        categoria: BuiltInCategory opcional (ej. BuiltInCategory.OST_Walls)
-
-    Returns:
-        lista de elementos Revit
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    col = FilteredElementCollector(doc).WhereElementIsNotElementType()
-    if categoria:
-        col = col.OfCategory(categoria)
-    return list(col.ToElements())
-
-
-def obtener_elementos_por_clase(clase):
-    """
-    Colecta todos los elementos de una clase .NET del documento.
-
-    Args:
-        clase: tipo .NET de Revit (ej. Wall, Level, Floor)
-
-    Returns:
-        lista de elementos Revit
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(FilteredElementCollector(doc).OfClass(clase).ToElements())
-
-
-def obtener_elemento_por_id(element_id):
-    """
-    Obtiene un elemento por su ElementId (acepta int o ElementId).
-
-    Args:
-        element_id: entero o ElementId del elemento
-
-    Returns:
-        elemento Revit o None
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    if isinstance(element_id, int):
-        element_id = ElementId(element_id)
-    return doc.GetElement(element_id)
-
+# ── Niveles ──────────────────────────────────────────────────────────────────
 
 def obtener_niveles():
     """
-    Retorna todos los niveles del documento ordenados por elevacion ascendente.
-
-    Args:
-        (ninguno)
+    Retorna todos los niveles del documento ordenados por elevacion.
 
     Returns:
-        lista de objetos Level ordenados por elevacion
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+        lista de Level ordenados de menor a mayor elevacion
     """
     niveles = list(FilteredElementCollector(doc).OfClass(Level).ToElements())
-    return sorted(niveles, key=lambda nivel: nivel.Elevation)
+    return sorted(niveles, key=lambda n: n.Elevation)
 
 
-def obtener_vistas_por_tipo(tipo_vista):
+def crear_nivel(elevacion_m, nombre):
     """
-    Filtra vistas del documento por ViewType excluyendo plantillas.
+    Crea un nivel a la elevacion indicada.
 
     Args:
-        tipo_vista: ViewType (ej. ViewType.FloorPlan, ViewType.Section)
+        elevacion_m: elevacion en metros
+        nombre: nombre del nivel
 
     Returns:
-        lista de vistas del tipo indicado
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+        Level creado
     """
-    vistas = list(FilteredElementCollector(doc).OfClass(View).ToElements())
-    return [v for v in vistas if v.ViewType == tipo_vista and not v.IsTemplate]
+    _iniciar()
+    nivel = Level.Create(doc, _metros_a_pies(elevacion_m))
+    try:
+        nivel.Name = nombre
+    except Exception:
+        pass
+    _finalizar()
+    return nivel
 
 
-def obtener_plantillas_de_vista():
+def crear_niveles_en_bloque(elevaciones_m, nombres):
     """
-    Retorna todas las plantillas de vista del documento.
+    Crea varios niveles de una vez a partir de listas de elevaciones y
+    nombres.
 
     Args:
-        (ninguno)
+        elevaciones_m: lista de elevaciones en metros
+        nombres: lista de nombres para los niveles
 
     Returns:
-        lista de objetos View que son plantillas
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+        lista de Level creados
     """
-    vistas = list(FilteredElementCollector(doc).OfClass(View).ToElements())
-    return [v for v in vistas if v.IsTemplate]
+    _iniciar()
+    resultado = []
+    for elev, nombre in zip(elevaciones_m, nombres):
+        n = Level.Create(doc, _metros_a_pies(elev))
+        try:
+            n.Name = nombre
+        except Exception:
+            pass
+        resultado.append(n)
+    _finalizar()
+    return resultado
 
 
-def obtener_planos():
+# ── Advertencias ─────────────────────────────────────────────────────────────
+
+def obtener_advertencias():
     """
-    Retorna todos los planos (ViewSheet) del documento.
+    Retorna todas las advertencias activas del documento.
+
+    Returns:
+        lista de FailureMessage
+    """
+    return list(doc.GetWarnings())
+
+
+def analizar_advertencias_por_tipo():
+    """
+    Agrupa las advertencias del documento por tipo de fallo.
+    Limpia el texto largo del SDK de Autodesk.
+
+    Returns:
+        lista de dicts con claves:
+          "tipo": texto de la advertencia (limpio)
+          "elementos": lista de ElementId de los elementos afectados
+          "cantidad": numero de advertencias de ese tipo
+    """
+    texto_a_limpiar = (
+        "debido a uno de los motivos siguientes o a ambos:")
+    advertencias = list(doc.GetWarnings())
+    agrupadas = {}
+    for adv in advertencias:
+        desc = (Autodesk.Revit.DB.FailureMessage
+                .GetDescriptionText(adv) or "")
+        desc = desc.replace(texto_a_limpiar, "").strip()
+        if ": " in desc:
+            desc = desc.split(": ", 1)[1]
+        if " no están conectados a una única red física" in desc:
+            desc = "Elementos no conectados a una única red física"
+        elem_ids = list(
+            Autodesk.Revit.DB.FailureMessage.GetFailingElements(adv)
+            or
+            Autodesk.Revit.DB.FailureMessage.GetAdditionalElements(adv)
+        )
+        if desc not in agrupadas:
+            agrupadas[desc] = []
+        agrupadas[desc].extend(elem_ids)
+    return [
+        {"tipo": k, "elementos": v, "cantidad": len(v)}
+        for k, v in sorted(
+            agrupadas.items(), key=lambda x: -len(x[1]))
+    ]
+
+
+def exportar_advertencias_a_csv(ruta_csv):
+    """
+    Exporta las advertencias del documento a un archivo CSV.
 
     Args:
-        (ninguno)
+        ruta_csv: ruta completa del archivo de salida
 
     Returns:
-        lista de objetos ViewSheet
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+        ruta_csv
     """
-    return list(FilteredElementCollector(doc).OfClass(ViewSheet).ToElements())
+    grupos = analizar_advertencias_por_tipo()
+    with io.open(ruta_csv, "w", encoding="utf-8") as f:
+        f.write("Tipo;Cantidad;ElementIds\n")
+        for g in grupos:
+            ids_str = " | ".join(
+                str(getattr(eid, "Value", eid.IntegerValue))
+                for eid in g["elementos"]
+            )
+            f.write(u"{};{};{}\n".format(
+                g["tipo"], g["cantidad"], ids_str))
+    return ruta_csv
 
 
-def obtener_plano_por_numero(numero):
+# ── Worksets ─────────────────────────────────────────────────────────────────
+
+def obtener_worksets():
     """
-    Busca y retorna un plano (ViewSheet) por su numero de plano.
-
-    Args:
-        numero: string con el numero de plano (ej. "A-101")
+    Retorna los worksets de usuario del documento colaborativo.
 
     Returns:
-        ViewSheet o None si no existe
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+        lista de Workset, o lista vacia si no es colaborativo
     """
-    for p in obtener_planos():
-        if p.SheetNumber == numero:
-            return p
-    return None
-
-
-def obtener_tipos_de_familia(nombre_familia):
-    """
-    Retorna todos los FamilySymbol de una familia por su nombre.
-
-    Args:
-        nombre_familia: nombre de la familia como string
-
-    Returns:
-        lista de FamilySymbol
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    tipos = list(
-        FilteredElementCollector(doc).OfClass(FamilySymbol).ToElements()
+    if not doc.IsWorkshared:
+        return []
+    filtro = WorksetKindFilter(WorksetKind.UserWorkset)
+    return list(
+        FilteredWorksetCollector(doc).WherePasses(filtro).ToWorksets()
     )
-    return [t for t in tipos if t.Family.Name == nombre_familia]
 
+
+def asignar_workset(elemento, workset_id):
+    """
+    Asigna un workset a un elemento. Requiere transaccion activa.
+
+    Args:
+        elemento: elemento Revit
+        workset_id: WorksetId a asignar
+
+    Returns:
+        None
+    """
+    param = elemento.get_Parameter(BuiltInParameter.ELEM_PARTITION_PARAM)
+    if param and not param.IsReadOnly:
+        param.Set(workset_id.IntegerValue)
+
+
+def asignar_workset_a_lista(elementos, workset_id):
+    """
+    Asigna masivamente un workset a una lista de elementos.
+
+    Args:
+        elementos: lista de elementos Revit
+        workset_id: WorksetId a asignar
+
+    Returns:
+        numero de elementos modificados (int)
+    """
+    _iniciar()
+    count = 0
+    for elem in elementos:
+        param = elem.get_Parameter(BuiltInParameter.ELEM_PARTITION_PARAM)
+        if param and not param.IsReadOnly:
+            param.Set(workset_id.IntegerValue)
+            count += 1
+    _finalizar()
+    return count
+
+
+def asignar_workset_por_categoria(categoria_bic, workset_id):
+    """
+    Asigna un workset a todos los elementos de una categoria BuiltIn.
+
+    Args:
+        categoria_bic: BuiltInCategory a procesar
+        workset_id: WorksetId a asignar
+
+    Returns:
+        numero de elementos modificados (int)
+    """
+    elementos = list(
+        FilteredElementCollector(doc)
+        .OfCategory(categoria_bic)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    return asignar_workset_a_lista(elementos, workset_id)
+
+
+def establecer_visibilidad_workset(workset_id, visible=False):
+    """
+    Cambia la visibilidad por defecto de un workset en todas las vistas.
+
+    Args:
+        workset_id: WorksetId del workset
+        visible: True para mostrar, False para ocultar
+
+    Returns:
+        None
+    """
+    _iniciar()
+    cfg = WorksetDefaultVisibilitySettings.GetWorksetDefaultVisibilitySettings(
+        doc)
+    cfg.SetWorksetVisibility(workset_id, visible)
+    _finalizar()
+
+
+def detectar_elementos_sin_workset(lista_elementos, workset_id_esperado):
+    """
+    Devuelve los elementos cuyo workset NO coincide con el esperado.
+    Util para control de calidad BIM.
+
+    Args:
+        lista_elementos: lista de elementos Revit a verificar
+        workset_id_esperado: WorksetId correcto
+
+    Returns:
+        lista de elementos con workset incorrecto
+    """
+    bip = BuiltInParameter.ELEM_PARTITION_PARAM
+    esperado = workset_id_esperado.IntegerValue
+    resultado = []
+    for e in lista_elementos:
+        p = e.get_Parameter(bip)
+        if p and p.AsInteger() != esperado:
+            resultado.append(e)
+    return resultado
+
+
+# ── Links Revit ──────────────────────────────────────────────────────────────
+
+def obtener_links_revit():
+    """
+    Retorna todas las instancias de link Revit del documento.
+
+    Returns:
+        lista de RevitLinkInstance
+    """
+    return list(
+        FilteredElementCollector(doc)
+        .OfClass(RevitLinkInstance).ToElements()
+    )
+
+
+def obtener_elementos_en_link(link_instancia, categorias_bic):
+    """
+    Colecta elementos de un documento enlazado por una o varias categorias.
+    Comprueba que el link este cargado antes de acceder al documento.
+
+    Args:
+        link_instancia: RevitLinkInstance del link
+        categorias_bic: BuiltInCategory o lista de BuiltInCategory
+
+    Returns:
+        tupla (lista_elementos, transform_total) donde transform_total es
+        el Transform del link en coordenadas del proyecto anfitrion,
+        o ([], None) si el link no esta cargado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if not RevitLinkType.IsLoaded(doc, link_instancia.GetTypeId()):
+        return [], None
+    link_doc = link_instancia.GetLinkDocument()
+    if not isinstance(categorias_bic, (list, tuple)):
+        categorias_bic = [categorias_bic]
+    ids_cat = List[ElementId](ElementId(c) for c in categorias_bic)
+    filtro = ElementMulticategoryFilter(ids_cat)
+    elementos = list(
+        FilteredElementCollector(link_doc)
+        .WhereElementIsNotElementType()
+        .WherePasses(filtro)
+        .ToElements()
+    )
+    transform = link_instancia.GetTotalTransform()
+    return elementos, transform
+
+
+def adquirir_coordenadas_de_link(link_instancia):
+    """
+    Adquiere las coordenadas del proyecto desde un link Revit.
+
+    Args:
+        link_instancia: RevitLinkInstance de referencia
+
+    Returns:
+        True si se adquirieron correctamente
+    """
+    _iniciar()
+    doc.AcquireCoordinates(link_instancia.Id)
+    _finalizar()
+    return True
+
+
+def copiar_elementos_desde_link(
+        link_instancia, ids_elementos, opciones_pegar=None):
+    """
+    Copia elementos de un documento enlazado al documento activo
+    usando ElementTransformUtils.
+
+    Args:
+        link_instancia: RevitLinkInstance de origen
+        ids_elementos: lista de ElementId del link
+        opciones_pegar: CopyPasteOptions (opcional)
+
+    Returns:
+        lista de elementos copiados en el documento activo
+    """
+    if not RevitLinkType.IsLoaded(doc, link_instancia.GetTypeId()):
+        return []
+    link_doc = link_instancia.GetLinkDocument()
+    tf = link_instancia.GetTotalTransform()
+    ids_net = List[ElementId](ids_elementos)
+    _iniciar()
+    nuevos_ids = ElementTransformUtils.CopyElements(
+        link_doc, ids_net, doc, tf, opciones_pegar)
+    _finalizar()
+    return [doc.GetElement(i) for i in nuevos_ids]
+
+
+def comparar_parametro_en_link(
+        elementos_host, link_instancia, nombre_param):
+    """
+    Compara el valor de un parametro entre elementos del host y sus
+    equivalentes en un link por UniqueId.
+
+    Args:
+        elementos_host: lista de elementos Revit del documento activo
+        link_instancia: RevitLinkInstance
+        nombre_param: nombre del parametro a comparar
+
+    Returns:
+        lista de dicts con claves:
+          "elemento_host", "valor_host", "valor_link", "igual"
+    """
+    if not RevitLinkType.IsLoaded(doc, link_instancia.GetTypeId()):
+        return []
+    link_doc = link_instancia.GetLinkDocument()
+    resultado = []
+    for elem in elementos_host:
+        uid = elem.UniqueId
+        elem_link = link_doc.GetElement(uid)
+        p_host = elem.LookupParameter(nombre_param)
+        val_host = p_host.AsString() if p_host else None
+        val_link = None
+        if elem_link:
+            p_link = elem_link.LookupParameter(nombre_param)
+            val_link = p_link.AsString() if p_link else None
+        resultado.append({
+            "elemento_host": elem,
+            "valor_host": val_host,
+            "valor_link": val_link,
+            "igual": val_host == val_link,
+        })
+    return resultado
+
+
+# ── Deteccion de colisiones ──────────────────────────────────────────────────
+
+def detectar_colisiones_bbox(elementos_a, elementos_b, tolerancia_m=0.0):
+    """
+    Detecta colisiones duras entre dos conjuntos de elementos usando sus
+    BoundingBox. Rapido para comprobaciones masivas (no usa solidos).
+
+    Args:
+        elementos_a: lista de elementos Revit (primer conjunto)
+        elementos_b: lista de elementos Revit (segundo conjunto)
+        tolerancia_m: margen adicional en metros para considerar colision
+
+    Returns:
+        lista de tuplas (elem_a, elem_b) de elementos en colision
+    """
+    tol = _metros_a_pies(tolerancia_m)
+    colisiones = []
+    for a in elementos_a:
+        bb_a = a.BoundingBox[None]
+        if bb_a is None:
+            continue
+        mn = XYZ(bb_a.Min.X - tol, bb_a.Min.Y - tol, bb_a.Min.Z - tol)
+        mx = XYZ(bb_a.Max.X + tol, bb_a.Max.Y + tol, bb_a.Max.Z + tol)
+        for b in elementos_b:
+            if a.Id == b.Id:
+                continue
+            bb_b = b.BoundingBox[None]
+            if bb_b is None:
+                continue
+            if (bb_b.Max.X >= mn.X and bb_b.Min.X <= mx.X and
+                    bb_b.Max.Y >= mn.Y and bb_b.Min.Y <= mx.Y and
+                    bb_b.Max.Z >= mn.Z and bb_b.Min.Z <= mx.Z):
+                colisiones.append((a, b))
+    return colisiones
+
+
+def detectar_colisiones_solidos(elementos_a, elementos_b):
+    """
+    Detecta colisiones exactas usando interseccion de solidos Revit.
+    Mas preciso que bbox pero mas lento.
+
+    Args:
+        elementos_a: lista de elementos Revit (primer conjunto)
+        elementos_b: lista de elementos Revit (segundo conjunto)
+
+    Returns:
+        lista de dicts con:
+          "elem_a", "elem_b", "solido_colision", "centroide"
+    """
+    from Autodesk.Revit.DB import Options, BooleanOperationsUtils
+    from Autodesk.Revit.DB import BooleanOperationsType
+    opts = Options()
+    opts.DetailLevel = Autodesk.Revit.DB.ViewDetailLevel.Fine
+    colisiones = []
+    for a in elementos_a:
+        geom_a = a.get_Geometry(opts)
+        solidos_a = [
+            s for g in (geom_a or [])
+            for s in (
+                [g] if hasattr(g, "Faces") else
+                [ss for ss in g.GetInstanceGeometry()
+                 if hasattr(ss, "Faces")]
+            )
+        ]
+        for b in elementos_b:
+            if a.Id == b.Id:
+                continue
+            geom_b = b.get_Geometry(opts)
+            solidos_b = [
+                s for g in (geom_b or [])
+                for s in (
+                    [g] if hasattr(g, "Faces") else
+                    [ss for ss in g.GetInstanceGeometry()
+                     if hasattr(ss, "Faces")]
+                )
+            ]
+            for sa in solidos_a:
+                for sb in solidos_b:
+                    try:
+                        inter = BooleanOperationsUtils.ExecuteBooleanOperation(
+                            sa, sb, BooleanOperationsType.Intersect)
+                        if inter and inter.Volume > 1e-10:
+                            colisiones.append({
+                                "elem_a": a,
+                                "elem_b": b,
+                                "solido_colision": inter,
+                                "centroide": inter.ComputeCentroid(),
+                            })
+                            break
+                    except Exception:
+                        pass
+    return colisiones
+
+
+# ── Parametros de proyecto ───────────────────────────────────────────────────
 
 def obtener_parametros_proyecto():
     """
-    Lista todos los parametros de proyecto (compartidos y de proyecto).
-
-    Args:
-        (ninguno)
+    Lista todos los parametros de proyecto del documento.
 
     Returns:
         lista de dicts {nombre, grupo}
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     resultado = []
     it = doc.ParameterBindings.ForwardIterator()
@@ -257,510 +555,144 @@ def obtener_parametros_proyecto():
     return resultado
 
 
-def obtener_links_revit():
+def exportar_parametros_a_csv(elementos, nombres_params, ruta_csv):
     """
-    Retorna todas las instancias de link Revit del documento.
+    Exporta los valores de una lista de parametros de una lista de
+    elementos a un archivo CSV.
 
     Args:
-        (ninguno)
+        elementos: lista de elementos Revit
+        nombres_params: lista de nombres de parametros a exportar
+        ruta_csv: ruta completa del archivo de salida
 
     Returns:
-        lista de RevitLinkInstance
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+        ruta_csv
     """
-    return list(
-        FilteredElementCollector(doc).OfClass(RevitLinkInstance).ToElements()
-    )
+    with io.open(ruta_csv, "w", encoding="utf-8") as f:
+        encabezado = u"ElementId;" + u";".join(nombres_params) + u"\n"
+        f.write(encabezado)
+        for elem in elementos:
+            try:
+                eid = int(elem.Id.Value)
+            except AttributeError:
+                eid = elem.Id.IntegerValue
+            valores = []
+            for np in nombres_params:
+                p = elem.LookupParameter(np)
+                if p is None:
+                    valores.append("")
+                else:
+                    t = p.StorageType
+                    if t == Autodesk.Revit.DB.StorageType.String:
+                        valores.append(p.AsString() or "")
+                    elif t == Autodesk.Revit.DB.StorageType.Integer:
+                        valores.append(str(p.AsInteger()))
+                    elif t == Autodesk.Revit.DB.StorageType.Double:
+                        valores.append(str(round(p.AsDouble(), 6)))
+                    elif t == Autodesk.Revit.DB.StorageType.ElementId:
+                        try:
+                            valores.append(
+                                str(p.AsElementId().Value))
+                        except AttributeError:
+                            valores.append(
+                                str(p.AsElementId().IntegerValue))
+                    else:
+                        valores.append("")
+            f.write(u"{};{}\n".format(eid, u";".join(valores)))
+    return ruta_csv
 
 
-def obtener_links_cad():
-    """
-    Retorna todas las instancias de importacion/link CAD del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de ImportInstance
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(
-        FilteredElementCollector(doc).OfClass(ImportInstance).ToElements()
-    )
-
-
-def obtener_advertencias():
-    """
-    Retorna todas las advertencias activas del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de FailureMessage
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(doc.GetWarnings())
-
-
-def obtener_worksets():
-    """
-    Retorna los worksets de usuario del documento colaborativo.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de Workset, o lista vacia si el documento no es colaborativo
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    if not doc.IsWorkshared:
-        return []
-    filtro = WorksetKindFilter(WorksetKind.UserWorkset)
-    return list(FilteredWorksetCollector(doc).WherePasses(filtro).ToWorksets())
-
-
-def asignar_workset(elemento, workset_id):
-    """
-    Asigna un workset a un elemento. Requiere transaccion activa.
-
-    Args:
-        elemento: elemento Revit
-        workset_id: WorksetId a asignar
-
-    Returns:
-        None
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    param = elemento.get_Parameter(BuiltInParameter.ELEM_PARTITION_PARAM)
-    if param and not param.IsReadOnly:
-        param.Set(workset_id.IntegerValue)
-
+# ── Categorias y modelo ──────────────────────────────────────────────────────
 
 def obtener_categorias_modelo():
     """
     Lista todas las categorias de modelo del documento.
 
-    Args:
-        (ninguno)
-
     Returns:
         lista de Category de tipo Model
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     cats = doc.Settings.Categories
     return [c for c in cats if c.CategoryType == CategoryType.Model]
 
 
-def obtener_fases():
+def contar_elementos_por_nivel(categoria_bic):
     """
-    Retorna todas las fases del proyecto.
+    Cuenta los elementos de una categoria agrupados por nivel.
 
     Args:
-        (ninguno)
+        categoria_bic: BuiltInCategory a contar
 
     Returns:
-        lista de Phase
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+        dict {nombre_nivel: cantidad}
     """
-    return list(FilteredElementCollector(doc).OfClass(Phase).ToElements())
-
-
-def obtener_grupos():
-    """
-    Retorna todos los grupos del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de Group
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(FilteredElementCollector(doc).OfClass(Group).ToElements())
-
-
-def exportar_ids_a_txt(elementos, ruta_archivo):
-    """
-    Exporta los ElementId de una lista de elementos a un archivo de texto.
-
-    Args:
-        elementos: lista de elementos Revit
-        ruta_archivo: ruta completa del archivo .txt de salida
-
-    Returns:
-        ruta_archivo
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    def _id_a_int(eid):
-        try:
-            return int(eid.Value)
-        except AttributeError:
-            return eid.IntegerValue
-
-    with io.open(ruta_archivo, "w", encoding="utf-8") as f:
-        for e in elementos:
-            f.write(str(_id_a_int(e.Id)) + "\n")
-    return ruta_archivo
-
-
-def crear_vista_plano(nivel, tipo_vista_id, nombre):
-    """
-    Crea una vista de planta para un nivel dado.
-
-    Args:
-        nivel: objeto Level de Revit
-        tipo_vista_id: ElementId del ViewFamilyType de planta
-        nombre: nombre de la nueva vista como string
-
-    Returns:
-        ViewPlan creada
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    _iniciar_transaccion("Crear Vista Planta")
-    vista = ViewPlan.Create(doc, tipo_vista_id, nivel.Id)
-    vista.Name = nombre
-    _finalizar_transaccion()
-    return vista
-
-
-def crear_plano(numero, nombre, tipo_plano_id=None):
-    """
-    Crea un plano (ViewSheet) nuevo con numero y nombre.
-
-    Args:
-        numero: numero del plano como string (ej. "A-101")
-        nombre: nombre del plano como string
-        tipo_plano_id: ElementId del tipo de cajetin (opcional, usa el
-            primero si es None)
-
-    Returns:
-        ViewSheet creado
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    _iniciar_transaccion("Crear Plano")
-    if tipo_plano_id is None:
-        tipos = list(
-            FilteredElementCollector(doc)
-            .OfClass(FamilySymbol)
-            .OfCategory(BuiltInCategory.OST_TitleBlocks)
-            .ToElements()
-        )
-        tipo_plano_id = tipos[0].Id if tipos else ElementId.InvalidElementId
-    plano = ViewSheet.Create(doc, tipo_plano_id)
-    plano.SheetNumber = numero
-    plano.Name = nombre
-    _finalizar_transaccion()
-    return plano
-
-
-def anadir_vista_a_plano(plano, vista, punto_uv=None):
-    """
-    Anade una vista a un plano en la posicion indicada.
-
-    Args:
-        plano: ViewSheet de destino
-        vista: View a insertar
-        punto_uv: UV con la posicion en el plano (por defecto (0.5, 0.5))
-
-    Returns:
-        Viewport creado
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    if punto_uv is None:
-        punto_uv = UV(0.5, 0.5)
-    _iniciar_transaccion("Anadir Vista a Plano")
-    viewport = Viewport.Create(
-        doc, plano.Id, vista.Id, XYZ(punto_uv.U, punto_uv.V, 0))
-    _finalizar_transaccion()
-    return viewport
-
-
-def duplicar_vista(vista, nombre):
-    """
-    Duplica una vista con el nombre indicado (sin detalle).
-
-    Args:
-        vista: View de origen
-        nombre: nombre de la nueva vista como string
-
-    Returns:
-        View duplicada
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    _iniciar_transaccion("Duplicar Vista")
-    nuevo_id = vista.Duplicate(ViewDuplicateOption.Duplicate)
-    nueva = doc.GetElement(nuevo_id)
-    try:
-        nueva.Name = nombre
-    except Exception:
-        pass
-    _finalizar_transaccion()
-    return nueva
-
-
-def aplicar_plantilla_vista(vistas, nombre_plantilla):
-    """
-    Aplica una plantilla de vista por nombre a una lista de vistas.
-
-    Args:
-        vistas: lista de View de Revit
-        nombre_plantilla: nombre de la plantilla como string
-
-    Returns:
-        lista de vistas actualizadas, o None si la plantilla no existe
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    todas = list(FilteredElementCollector(doc).OfClass(View).ToElements())
-    plantilla = next(
-        (v for v in todas if v.IsTemplate and v.Name == nombre_plantilla),
-        None)
-    if plantilla is None:
-        return None
-    _iniciar_transaccion("Aplicar Plantilla Vista")
-    for v in vistas:
-        v.ViewTemplateId = plantilla.Id
-    _finalizar_transaccion()
-    return vistas
-
-
-def crear_seccion(curva, tipo_vista_id, offset=1.0, altura=3.0):
-    """
-    Crea una vista de seccion a partir de una curva Revit.
-
-    Args:
-        curva: curva Revit (Line) que define el eje de corte
-        tipo_vista_id: ElementId del ViewFamilyType de seccion
-        offset: profundidad lateral en metros (por defecto 1.0)
-        altura: altura de corte en metros (por defecto 3.0)
-
-    Returns:
-        ViewSection creada
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    sp = curva.GetEndPoint(0)
-    ep = curva.GetEndPoint(1)
-    v = ep - sp
-    w = v.GetLength()
-    mid = sp + 0.5 * v
-    dir_linea = v.Normalize()
-    up = XYZ.BasisZ
-    normal = dir_linea.CrossProduct(up)
-
-    off = _metros_a_pies(offset)
-    alt = _metros_a_pies(altura)
-
-    bb = BoundingBoxXYZ()
-    t = Transform.Identity
-    t.Origin = mid
-    t.BasisX = dir_linea
-    t.BasisY = up
-    t.BasisZ = normal
-    bb.Transform = t
-    bb.Min = XYZ(-w / 2, 0, -off)
-    bb.Max = XYZ(w / 2, alt, off)
-
-    _iniciar_transaccion("Crear Seccion")
-    seccion = ViewSection.CreateSection(doc, tipo_vista_id, bb)
-    _finalizar_transaccion()
-    return seccion
-
-
-def crear_vista_3d_isometrica(nombre):
-    """
-    Crea una vista 3D isometrica con el nombre indicado.
-
-    Args:
-        nombre: nombre de la vista como string
-
-    Returns:
-        View3D creada, o None si no hay tipo de vista 3D disponible
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    tipos = list(
-        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    bip_nivel = BuiltInParameter.LEVEL_PARAM
+    bip_nivel_alt = BuiltInParameter.FAMILY_LEVEL_PARAM
+    elementos = list(
+        FilteredElementCollector(doc)
+        .OfCategory(categoria_bic)
+        .WhereElementIsNotElementType()
+        .ToElements()
     )
-    tipo = next(
-        (t for t in tipos if t.ViewFamily == ViewFamily.ThreeDimensional),
-        None)
-    if tipo is None:
-        return None
-    _iniciar_transaccion("Crear Vista 3D")
-    vista = View3D.CreateIsometric(doc, tipo.Id)
-    vista.Name = nombre
-    _finalizar_transaccion()
-    return vista
+    resultado = {}
+    for e in elementos:
+        p = (e.get_Parameter(bip_nivel)
+             or e.get_Parameter(bip_nivel_alt))
+        nivel_id = p.AsElementId() if p else None
+        if nivel_id and nivel_id.IntegerValue > 0:
+            nivel = doc.GetElement(nivel_id)
+            nombre = nivel.Name if nivel else "Sin nivel"
+        else:
+            nombre = "Sin nivel"
+        resultado[nombre] = resultado.get(nombre, 0) + 1
+    return resultado
 
 
-def crear_vista_plano_desde_habitacion(
-        habitacion, tipo_vista_id, offset_m=1.0, escala=50):
+def detectar_elementos_duplicados(categoria_bic, tolerancia_m=0.001):
     """
-    Crea una vista de planta recortada al bounding box de una habitacion.
+    Detecta elementos de la misma categoria en la misma posicion
+    (BBox centroide con tolerancia). Util para limpiar modelos.
 
     Args:
-        habitacion: elemento Room de Revit
-        tipo_vista_id: ElementId del ViewFamilyType de planta
-        offset_m: margen adicional alrededor de la habitacion en metros
-        escala: escala de la vista (ej. 50 para 1:50)
+        categoria_bic: BuiltInCategory a verificar
+        tolerancia_m: distancia maxima para considerar duplicado
 
     Returns:
-        ViewPlan recortada a la habitacion
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+        lista de grupos (cada grupo es lista de elementos duplicados)
     """
-    bbox = habitacion.BoundingBox[doc.ActiveView]
-    off = _metros_a_pies(offset_m)
-    nuevo_bb = BoundingBoxXYZ()
-    nuevo_bb.Min = XYZ(
-        bbox.Min.X - off, bbox.Min.Y - off, bbox.Min.Z - off)
-    nuevo_bb.Max = XYZ(
-        bbox.Max.X + off, bbox.Max.Y + off, bbox.Max.Z + off)
-
-    _iniciar_transaccion("Crear Vista Plano Habitacion")
-    nivel = habitacion.Level
-    vista = ViewPlan.Create(doc, tipo_vista_id, nivel.Id)
-    vista.CropBox = nuevo_bb
-    vista.CropBoxActive = True
-    vista.CropBoxVisible = False
-    vista.Scale = escala
-    _finalizar_transaccion()
-    return vista
-
-
-def exportar_vistas_a_imagen(vistas, ruta_base, formato=None):
-    """
-    Exporta una lista de vistas a imagenes en la ruta indicada.
-
-    Args:
-        vistas: lista de View de Revit
-        ruta_base: ruta base de salida (sin extension)
-        formato: ImageFileType (por defecto ImageFileType.PNG)
-
-    Returns:
-        ruta_base
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    if formato is None:
-        formato = ImageFileType.PNG
-    ids = List[ElementId]()
-    for v in vistas:
-        ids.Add(v.Id)
-    opciones = ImageExportOptions()
-    opciones.FilePath = ruta_base
-    opciones.ExportRange = ExportRange.SetOfViews
-    opciones.SetViewsAndSheets(ids)
-    opciones.ImageResolution = ImageResolution.DPI_150
-    opciones.HLRandWFViewsFileType = formato
-    doc.ExportImage(opciones)
-    return ruta_base
-
-
-def copiar_elementos_entre_vistas(
-        vista_origen, vista_destino, elementos, transformacion=None):
-    """
-    Copia elementos anotados de una vista a otra.
-
-    Args:
-        vista_origen: View de origen
-        vista_destino: View de destino
-        elementos: lista de elementos Revit a copiar
-        transformacion: objeto Transform de Revit (opcional)
-
-    Returns:
-        lista de elementos copiados
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    ids = List[ElementId]([e.Id for e in elementos if hasattr(e, "Id")])
-    _iniciar_transaccion("Copiar Elementos Entre Vistas")
-    copiados = ElementTransformUtils.CopyElements(
-        vista_origen, ids, vista_destino, transformacion, None)
-    _finalizar_transaccion()
-    return [doc.GetElement(i) for i in copiados]
-
-
-def sobreescribir_grafico_elemento(
-        vista, elemento, color_superficie=None,
-        patron_sup_id=None, color_corte=None, patron_corte_id=None):
-    """
-    Aplica overrides de color y patron de relleno a un elemento en una vista.
-
-    Args:
-        vista: View donde aplicar el override
-        elemento: elemento Revit
-        color_superficie: tupla (R, G, B) para el color de superficie
-            (opcional)
-        patron_sup_id: ElementId del patron de relleno de superficie
-            (opcional)
-        color_corte: tupla (R, G, B) para el color de corte (opcional)
-        patron_corte_id: ElementId del patron de corte (opcional)
-
-    Returns:
-        None
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    ogs = OverrideGraphicSettings()
-    if color_superficie:
-        col = Color(
-            color_superficie[0], color_superficie[1], color_superficie[2])
-        ogs.SetSurfaceForegroundPatternColor(col)
-        ogs.SetSurfaceForegroundPatternVisible(True)
-    if patron_sup_id:
-        ogs.SetSurfaceForegroundPatternId(patron_sup_id)
-    if color_corte:
-        col = Color(color_corte[0], color_corte[1], color_corte[2])
-        ogs.SetCutForegroundPatternColor(col)
-        ogs.SetCutForegroundPatternVisible(True)
-    if patron_corte_id:
-        ogs.SetCutForegroundPatternId(patron_corte_id)
-    _iniciar_transaccion("Override Grafico")
-    vista.SetElementOverrides(elemento.Id, ogs)
-    _finalizar_transaccion()
-
-
-def crear_alzado(posicion_xyz, vista_plan_id, indice=0, escala=100):
-    """
-    Crea un ElevationMarker y un alzado en el indice indicado.
-
-    Args:
-        posicion_xyz: XYZ de posicion del marcador de alzado
-        vista_plan_id: ElementId de la vista de planta donde se crea
-            el marcador
-        indice: 0=Norte/Derecha, 1=Este/Abajo, 2=Sur/Izquierda,
-            3=Oeste/Arriba
-        escala: escala de la vista de alzado
-
-    Returns:
-        tupla (ElevationMarker, View de alzado)
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    tipos = list(
-        FilteredElementCollector(doc).OfClass(ViewFamilyType).ToElements()
+    tol = _metros_a_pies(tolerancia_m)
+    elementos = list(
+        FilteredElementCollector(doc)
+        .OfCategory(categoria_bic)
+        .WhereElementIsNotElementType()
+        .ToElements()
     )
-    tipo_id = next(
-        t.Id for t in tipos if t.ViewFamily == ViewFamily.Elevation)
-    _iniciar_transaccion("Crear Alzado")
-    marker = ElevationMarker.CreateElevationMarker(
-        doc, tipo_id, posicion_xyz, escala)
-    alzado = marker.CreateElevation(doc, vista_plan_id, indice)
-    _finalizar_transaccion()
-    return marker, alzado
+    usados = set()
+    grupos = []
+    for i, a in enumerate(elementos):
+        if i in usados:
+            continue
+        bb_a = a.BoundingBox[None]
+        if bb_a is None:
+            continue
+        cx = (bb_a.Min.X + bb_a.Max.X) / 2.0
+        cy = (bb_a.Min.Y + bb_a.Max.Y) / 2.0
+        cz = (bb_a.Min.Z + bb_a.Max.Z) / 2.0
+        grupo = [a]
+        for j, b in enumerate(elementos):
+            if j <= i or j in usados:
+                continue
+            bb_b = b.BoundingBox[None]
+            if bb_b is None:
+                continue
+            bx = (bb_b.Min.X + bb_b.Max.X) / 2.0
+            by = (bb_b.Min.Y + bb_b.Max.Y) / 2.0
+            bz = (bb_b.Min.Z + bb_b.Max.Z) / 2.0
+            dist = ((cx - bx) ** 2 + (cy - by) ** 2 +
+                    (cz - bz) ** 2) ** 0.5
+            if dist <= tol:
+                grupo.append(b)
+                usados.add(j)
+        if len(grupo) > 1:
+            usados.add(i)
+            grupos.append(grupo)
+    return grupos

@@ -24,23 +24,21 @@ clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
 clr.AddReference("RevitNodes")
 
-from System.Collections.Generic import List
-from Autodesk.Revit.DB import (
-    FilteredElementCollector, ElementId, Level, Line, XYZ, CurveLoop,
-    CurveArray, BuiltInCategory, BuiltInParameter, StructuralWallUsage,
-    StructuralType, ElementTransformUtils, Options, ViewDetailLevel,
-    SketchPlane, UnitUtils, UnitTypeId
+from System.Collections.Generic import List  # noqa: E402
+from Autodesk.Revit.DB import (  # noqa: E402
+    FilteredElementCollector, Level, Line, XYZ, CurveLoop,
+    BuiltInCategory, BuiltInParameter,
+    StructuralType, SketchPlane, UnitUtils, UnitTypeId
 )
-from Autodesk.Revit.DB.Structure import (
-    Rebar, RebarStyle, RebarHookOrientation, RebarBarType, RebarHostData,
+from Autodesk.Revit.DB.Structure import (  # noqa: E402
+    Rebar, RebarStyle, RebarHookOrientation, RebarHostData,
     RebarHookType, AreaReinforcement, AreaReinforcementType,
-    PathReinforcement, ElementTypeGroup, LoadBase,
     PointLoad, PointLoadType, LineLoad, LineLoadType, AreaLoad, AreaLoadType
 )
-from RevitServices.Persistence import DocumentManager
-from RevitServices.Transactions import TransactionManager
+from RevitServices.Persistence import DocumentManager  # noqa: E402
+from RevitServices.Transactions import TransactionManager  # noqa: E402
 
-import Revit
+import Revit  # noqa: E402
 clr.ImportExtensions(Revit.Elements)
 
 doc = DocumentManager.Instance.CurrentDBDocument
@@ -71,6 +69,10 @@ def _pies2_a_m2(v):
     return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.SquareMeters)
 
 
+def _pies3_a_m3(v):
+    return UnitUtils.ConvertFromInternalUnits(v, UnitTypeId.CubicMeters)
+
+
 def _iniciar(nombre="Transaccion"):
     TransactionManager.Instance.EnsureInTransaction(doc)
 
@@ -79,144 +81,7 @@ def _finalizar():
     TransactionManager.Instance.TransactionTaskDone()
 
 
-def obtener_pilares():
-    """
-    Retorna todos los pilares estructurales del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de FamilyInstance de pilares
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(
-        FilteredElementCollector(doc)
-        .OfCategory(BuiltInCategory.OST_StructuralColumns)
-        .WhereElementIsNotElementType()
-        .ToElements()
-    )
-
-
-def obtener_vigas():
-    """
-    Retorna todas las vigas estructurales del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de FamilyInstance de vigas
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(
-        FilteredElementCollector(doc)
-        .OfCategory(BuiltInCategory.OST_StructuralFraming)
-        .WhereElementIsNotElementType()
-        .ToElements()
-    )
-
-
-def obtener_forjados():
-    """
-    Retorna todos los forjados del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de Floor estructurales
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(
-        FilteredElementCollector(doc)
-        .OfCategory(BuiltInCategory.OST_Floors)
-        .WhereElementIsNotElementType()
-        .ToElements()
-    )
-
-
-def obtener_muros_estructurales():
-    """
-    Retorna los muros con funcion estructural (no solo de cerramiento).
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de Wall con StructuralUsage distinto de NonBearing
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    muros = list(
-        FilteredElementCollector(doc)
-        .OfCategory(BuiltInCategory.OST_Walls)
-        .WhereElementIsNotElementType()
-        .ToElements()
-    )
-    return [
-        m for m in muros
-        if m.StructuralUsage != StructuralWallUsage.NonBearing
-    ]
-
-
-def obtener_cimentaciones():
-    """
-    Retorna todos los elementos de cimentacion del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de elementos de cimentacion
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(
-        FilteredElementCollector(doc)
-        .OfCategory(BuiltInCategory.OST_StructuralFoundation)
-        .WhereElementIsNotElementType()
-        .ToElements()
-    )
-
-
-def obtener_armaduras():
-    """
-    Retorna todas las armaduras (Rebar) del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de Rebar
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(
-        FilteredElementCollector(doc)
-        .OfCategory(BuiltInCategory.OST_Rebar)
-        .WhereElementIsNotElementType()
-        .ToElements()
-    )
-
-
-def obtener_cargas():
-    """
-    Retorna todas las cargas estructurales del documento.
-
-    Args:
-        (ninguno)
-
-    Returns:
-        lista de LoadBase (PointLoad, LineLoad, AreaLoad)
-
-    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
-    """
-    return list(FilteredElementCollector(doc).OfClass(LoadBase).ToElements())
-
+# ── Propiedades de elementos ─────────────────────────────────────────────────
 
 def obtener_longitud_viga(viga):
     """
@@ -294,12 +159,15 @@ def obtener_material_estructura(elemento):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    param = elemento.get_Parameter(BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
+    param = elemento.get_Parameter(
+        BuiltInParameter.STRUCTURAL_MATERIAL_PARAM)
     if param:
         mat = doc.GetElement(param.AsElementId())
         return mat.Name if mat else None
     return None
 
+
+# ── Filtros por nivel ────────────────────────────────────────────────────────
 
 def obtener_pilares_por_nivel(nivel):
     """
@@ -313,14 +181,21 @@ def obtener_pilares_por_nivel(nivel):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return [p for p in obtener_pilares()
+    pilares = list(
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_StructuralColumns)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    return [p for p in pilares
             if obtener_nivel_base_pilar(p) is not None
             and obtener_nivel_base_pilar(p).Id == nivel.Id]
 
 
 def obtener_vigas_por_nivel(nivel):
     """
-    Retorna las vigas cuyo nivel de referencia coincide con el nivel indicado.
+    Retorna las vigas cuyo nivel de referencia coincide con el nivel
+    indicado.
 
     Args:
         nivel: objeto Level de Revit
@@ -331,10 +206,48 @@ def obtener_vigas_por_nivel(nivel):
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     bip = BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM
-    return [v for v in obtener_vigas()
+    vigas = list(
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_StructuralFraming)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    return [v for v in vigas
             if v.get_Parameter(bip) is not None
             and v.get_Parameter(bip).AsElementId() == nivel.Id]
 
+
+def agrupar_vigas_por_nivel():
+    """
+    Agrupa todas las vigas del documento por nombre de nivel de referencia.
+
+    Args:
+        (ninguno)
+
+    Returns:
+        dict {nombre_nivel: [vigas]}
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    bip = BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM
+    vigas = list(
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_StructuralFraming)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    resultado = {}
+    for v in vigas:
+        p = v.get_Parameter(bip)
+        if p is None:
+            continue
+        nivel = doc.GetElement(p.AsElementId())
+        nombre = nivel.Name if nivel else "Sin nivel"
+        resultado.setdefault(nombre, []).append(v)
+    return resultado
+
+
+# ── Cantidades y volumenes ───────────────────────────────────────────────────
 
 def obtener_area_forjado(forjado):
     """
@@ -354,8 +267,7 @@ def obtener_area_forjado(forjado):
 
 def obtener_area_total_forjados():
     """
-    Retorna el area total de todos los forjados del documento en metros
-    cuadrados.
+    Retorna el area total de todos los forjados del documento en m2.
 
     Args:
         (ninguno)
@@ -365,7 +277,13 @@ def obtener_area_total_forjados():
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return sum(obtener_area_forjado(f) for f in obtener_forjados())
+    forjados = list(
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_Floors)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    return sum(obtener_area_forjado(f) for f in forjados)
 
 
 def obtener_materiales_usados():
@@ -382,12 +300,61 @@ def obtener_materiales_usados():
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
     materiales = set()
-    for e in list(obtener_vigas()) + list(obtener_pilares()):
+    vigas = list(
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_StructuralFraming)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    pilares = list(
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_StructuralColumns)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    for e in vigas + pilares:
         mat = obtener_material_estructura(e)
         if mat:
             materiales.add(mat)
     return list(materiales)
 
+
+def calcular_volumen_hormigon(categorias_bic=None):
+    """
+    Suma HOST_VOLUME_COMPUTED de los elementos estructurales indicados.
+    Sin argumento suma pilares, vigas, forjados y cimentaciones.
+
+    Args:
+        categorias_bic: lista de BuiltInCategory (opcional)
+
+    Returns:
+        volumen total en m3 (float)
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if categorias_bic is None:
+        categorias_bic = [
+            BuiltInCategory.OST_StructuralColumns,
+            BuiltInCategory.OST_StructuralFraming,
+            BuiltInCategory.OST_Floors,
+            BuiltInCategory.OST_StructuralFoundation,
+        ]
+    total = 0.0
+    for bic in categorias_bic:
+        elementos = list(
+            FilteredElementCollector(doc)
+            .OfCategory(bic)
+            .WhereElementIsNotElementType()
+            .ToElements()
+        )
+        for e in elementos:
+            p = e.get_Parameter(BuiltInParameter.HOST_VOLUME_COMPUTED)
+            if p:
+                total += p.AsDouble()
+    return _pies3_a_m3(total)
+
+
+# ── Creacion de elementos ────────────────────────────────────────────────────
 
 def crear_viga(curva_revit, nivel, tipo_viga_id):
     """
@@ -412,7 +379,31 @@ def crear_viga(curva_revit, nivel, tipo_viga_id):
     return viga
 
 
-def crear_pilar_inclinado(punto_base_xyz, punto_top_xyz, nivel, tipo_pilar_id):
+def crear_pilar_vertical(punto_base_xyz, nivel, tipo_pilar_id):
+    """
+    Crea un pilar estructural vertical en la posicion y nivel indicados.
+
+    Args:
+        punto_base_xyz: XYZ del punto de insercion del pilar
+        nivel: objeto Level de Revit (nivel base)
+        tipo_pilar_id: ElementId del FamilySymbol del pilar
+
+    Returns:
+        FamilyInstance de pilar creado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    tipo = doc.GetElement(tipo_pilar_id)
+    tipo.Activate()
+    _iniciar("Crear Pilar Vertical")
+    pilar = doc.Create.NewFamilyInstance(
+        punto_base_xyz, tipo, nivel, StructuralType.Column)
+    _finalizar()
+    return pilar
+
+
+def crear_pilar_inclinado(
+        punto_base_xyz, punto_top_xyz, nivel, tipo_pilar_id):
     """
     Crea un pilar estructural inclinado entre dos puntos XYZ.
 
@@ -460,20 +451,23 @@ def obtener_propiedades_viga(viga):
         return _pies_a_metros(p.AsDouble()) if p else None
 
     return {
-        "extension_inicio":   _vdbl(BuiltInParameter.START_EXTENSION),
-        "extension_fin":      _vdbl(BuiltInParameter.END_EXTENSION),
+        "extension_inicio": _vdbl(BuiltInParameter.START_EXTENSION),
+        "extension_fin": _vdbl(BuiltInParameter.END_EXTENSION),
         "corte_union_inicio": _vdbl(BuiltInParameter.START_JOIN_CUTBACK),
-        "corte_union_fin":    _vdbl(BuiltInParameter.END_JOIN_CUTBACK),
-        "justificacion_yz":   _vstr(BuiltInParameter.YZ_JUSTIFICATION),
-        "justificacion_y":    _vstr(BuiltInParameter.Y_JUSTIFICATION),
-        "offset_y_m":         _vdbl(BuiltInParameter.Y_OFFSET_VALUE),
-        "justificacion_z":    _vstr(BuiltInParameter.Z_JUSTIFICATION),
-        "offset_z_m":         _vdbl(BuiltInParameter.Z_OFFSET_VALUE),
+        "corte_union_fin": _vdbl(BuiltInParameter.END_JOIN_CUTBACK),
+        "justificacion_yz": _vstr(BuiltInParameter.YZ_JUSTIFICATION),
+        "justificacion_y": _vstr(BuiltInParameter.Y_JUSTIFICATION),
+        "offset_y_m": _vdbl(BuiltInParameter.Y_OFFSET_VALUE),
+        "justificacion_z": _vstr(BuiltInParameter.Z_JUSTIFICATION),
+        "offset_z_m": _vdbl(BuiltInParameter.Z_OFFSET_VALUE),
     }
 
 
-def crear_armadura(elemento_anfitrion, tipo_barra_id, curvas,
-                   estilo=None, gancho_inicio_id=None, gancho_fin_id=None):
+# ── Armaduras ────────────────────────────────────────────────────────────────
+
+def crear_armadura(
+        elemento_anfitrion, tipo_barra_id, curvas,
+        estilo=None, gancho_inicio_id=None, gancho_fin_id=None):
     """
     Crea una armadura (Rebar) en un elemento estructural a partir de curvas.
 
@@ -493,8 +487,10 @@ def crear_armadura(elemento_anfitrion, tipo_barra_id, curvas,
     if estilo is None:
         estilo = RebarStyle.Standard
     tipo_barra = doc.GetElement(tipo_barra_id)
-    gancho_ini = doc.GetElement(gancho_inicio_id) if gancho_inicio_id else None
-    gancho_fin = doc.GetElement(gancho_fin_id) if gancho_fin_id else None
+    gancho_ini = (
+        doc.GetElement(gancho_inicio_id) if gancho_inicio_id else None)
+    gancho_fin = (
+        doc.GetElement(gancho_fin_id) if gancho_fin_id else None)
     origen = XYZ.BasisZ
     _iniciar("Crear Armadura")
     rebar = Rebar.CreateFromCurves(
@@ -532,6 +528,76 @@ def distribuir_armadura_numero_fijo(
     _finalizar()
 
 
+def distribuir_armadura_separacion_maxima(
+        rebar, separacion_mm, longitud_array_m,
+        lado_normal=True, incluir_primera=True, incluir_ultima=True):
+    """
+    Distribuye una armadura respetando una separacion maxima entre barras.
+
+    Args:
+        rebar: elemento Rebar de Revit
+        separacion_mm: separacion maxima entre barras en milimetros
+        longitud_array_m: longitud total del array en metros
+        lado_normal: si True las barras se distribuyen en el lado normal
+        incluir_primera: si True incluye la primera barra
+        incluir_ultima: si True incluye la ultima barra
+
+    Returns:
+        None
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    _iniciar("Distribuir Armadura Separacion Maxima")
+    rebar.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(
+        _mm_a_pies(separacion_mm), _metros_a_pies(longitud_array_m),
+        lado_normal, incluir_primera, incluir_ultima)
+    _finalizar()
+
+
+def distribuir_armadura_separacion_minima(
+        rebar, separacion_mm, longitud_array_m,
+        lado_normal=True, incluir_primera=True, incluir_ultima=True):
+    """
+    Distribuye una armadura respetando una separacion minima entre barras.
+
+    Args:
+        rebar: elemento Rebar de Revit
+        separacion_mm: separacion minima entre barras en milimetros
+        longitud_array_m: longitud total del array en metros
+        lado_normal: si True las barras se distribuyen en el lado normal
+        incluir_primera: si True incluye la primera barra
+        incluir_ultima: si True incluye la ultima barra
+
+    Returns:
+        None
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    _iniciar("Distribuir Armadura Separacion Minima")
+    rebar.GetShapeDrivenAccessor().SetLayoutAsMinimumSpacing(
+        _mm_a_pies(separacion_mm), _metros_a_pies(longitud_array_m),
+        lado_normal, incluir_primera, incluir_ultima)
+    _finalizar()
+
+
+def establecer_armadura_solida_en_vista(rebar, vista):
+    """
+    Fuerza la representacion solida de una armadura en una vista.
+
+    Args:
+        rebar: elemento Rebar de Revit
+        vista: vista de Revit en la que aplicar la representacion solida
+
+    Returns:
+        None
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    _iniciar("Armadura Solida en Vista")
+    rebar.SetSolidInView(vista, True)
+    _finalizar()
+
+
 def obtener_armaduras_de_elemento(elemento):
     """
     Retorna todas las armaduras anfitrionadas en un elemento estructural.
@@ -544,8 +610,10 @@ def obtener_armaduras_de_elemento(elemento):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return [doc.GetElement(rid)
-            for rid in RebarHostData.GetRebarHostData(elemento).GetRebarIds()]
+    return [
+        doc.GetElement(rid)
+        for rid in RebarHostData.GetRebarHostData(elemento).GetRebarIds()
+    ]
 
 
 def crear_armado_por_area(
@@ -576,7 +644,8 @@ def crear_armado_por_area(
     tipo_area_id = doc.GetElement(
         AreaReinforcementType.CreateDefaultAreaReinforcementType(doc)).Id
     armado = AreaReinforcement.Create(
-        doc, suelo, direccion_xyz, tipo_area_id, tipo_barra_id, tipo_gancho_id)
+        doc, suelo, direccion_xyz, tipo_area_id,
+        tipo_barra_id, tipo_gancho_id)
     _finalizar()
     return armado
 
@@ -598,7 +667,7 @@ def obtener_recubrimientos(elemento_estructural):
         return _pies_a_mm(p.AsDouble()) if p else None
 
     return {
-        "general":  _v(BuiltInParameter.CLEAR_COVER),
+        "general": _v(BuiltInParameter.CLEAR_COVER),
         "inferior": _v(BuiltInParameter.CLEAR_COVER_BOTTOM),
         "superior": _v(BuiltInParameter.CLEAR_COVER_TOP),
         "interior": _v(BuiltInParameter.CLEAR_COVER_INTERIOR),
@@ -606,7 +675,10 @@ def obtener_recubrimientos(elemento_estructural):
     }
 
 
-def crear_carga_puntual(punto_xyz, fuerza_xyz, momento_xyz=None, nivel=None):
+# ── Cargas estructurales ─────────────────────────────────────────────────────
+
+def crear_carga_puntual(
+        punto_xyz, fuerza_xyz, momento_xyz=None, nivel=None):
     """
     Crea una carga puntual libre en el modelo.
 

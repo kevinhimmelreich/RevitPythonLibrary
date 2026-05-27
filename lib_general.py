@@ -25,14 +25,14 @@ clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
 clr.AddReference("RevitNodes")
 
-from Autodesk.Revit.DB import (
+from Autodesk.Revit.DB import (  # noqa: E402
     FilteredElementCollector, ElementId, StorageType,
-    UnitUtils, UnitTypeId
+    ElementTransformUtils, UnitUtils, UnitTypeId
 )
-from RevitServices.Persistence import DocumentManager
-from RevitServices.Transactions import TransactionManager
+from RevitServices.Persistence import DocumentManager  # noqa: E402
+from RevitServices.Transactions import TransactionManager  # noqa: E402
 
-import Revit
+import Revit  # noqa: E402
 clr.ImportExtensions(Revit.Elements)
 
 doc = DocumentManager.Instance.CurrentDBDocument
@@ -261,7 +261,8 @@ def mm_a_pies(valor_mm):
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return UnitUtils.ConvertToInternalUnits(valor_mm, UnitTypeId.Millimeters)
+    return UnitUtils.ConvertToInternalUnits(
+        valor_mm, UnitTypeId.Millimeters)
 
 
 def pies_a_mm(valor_pies):
@@ -311,57 +312,94 @@ def pies2_a_m2(valor_pies2):
         valor_pies2, UnitTypeId.SquareMeters)
 
 
-def filtrar_por_categoria(categoria_builtIn):
+def copiar_elemento(elemento, vector_xyz):
     """
-    Retorna todos los elementos de instancia de una categoria BuiltIn
-    del documento activo.
+    Copia un elemento Revit desplazado por el vector indicado.
 
     Args:
-        categoria_builtIn: valor BuiltInCategory (ej.
-        BuiltInCategory.OST_Walls)
+        elemento: elemento Revit a copiar
+        vector_xyz: XYZ con el vector de desplazamiento en pies internos
 
     Returns:
-        lista de elementos Revit
+        elemento Revit copiado, o None si falla
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return list(
-        FilteredElementCollector(doc)
-        .OfCategory(categoria_builtIn)
-        .WhereElementIsNotElementType()
-        .ToElements()
-    )
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    nuevos_ids = ElementTransformUtils.CopyElement(
+        doc, elemento.Id, vector_xyz)
+    TransactionManager.Instance.TransactionTaskDone()
+    return doc.GetElement(list(nuevos_ids)[0]) if nuevos_ids else None
 
 
-def filtrar_por_clase(clase):
+def mover_elemento(elemento, vector_xyz):
     """
-    Retorna todos los elementos de una clase .NET del documento activo.
+    Mueve un elemento Revit por el vector indicado.
 
     Args:
-        clase: tipo .NET de Revit (ej. Wall, Floor, Level)
+        elemento: elemento Revit a mover
+        vector_xyz: XYZ con el vector de desplazamiento en pies internos
 
     Returns:
-        lista de elementos Revit
+        None
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return list(
-        FilteredElementCollector(doc)
-        .OfClass(clase)
-        .ToElements()
-    )
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    ElementTransformUtils.MoveElement(doc, elemento.Id, vector_xyz)
+    TransactionManager.Instance.TransactionTaskDone()
 
 
-def obtener_elemento_por_id(int_id):
+def eliminar_elemento(elemento):
     """
-    Obtiene un elemento del documento por su ID entero.
+    Elimina un elemento del documento.
 
     Args:
-        int_id: entero con el ID del elemento
+        elemento: elemento Revit a eliminar
 
     Returns:
-        elemento Revit o None si no existe
+        ElementId del elemento eliminado
 
     Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
     """
-    return doc.GetElement(ElementId(int_id))
+    eid = elemento.Id
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    doc.Delete(eid)
+    TransactionManager.Instance.TransactionTaskDone()
+    return eid
+
+
+def agrupar_por_parametro(elementos, nombre_param):
+    """
+    Agrupa una lista de elementos por el valor de un parametro de instancia.
+
+    Args:
+        elementos: lista de elementos Revit
+        nombre_param: nombre del parametro como string
+
+    Returns:
+        dict {valor_parametro: [elementos]}
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    grupos = {}
+    for e in elementos:
+        valor = obtener_valor_parametro(e, nombre_param)
+        clave = str(valor) if valor is not None else "Sin valor"
+        grupos.setdefault(clave, []).append(e)
+    return grupos
+
+
+def obtener_ids_int(elementos):
+    """
+    Retorna una lista de enteros con los IDs de los elementos dados.
+
+    Args:
+        elementos: lista de elementos Revit
+
+    Returns:
+        lista de enteros con los IDs
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return [id_a_int(e.Id) for e in elementos]

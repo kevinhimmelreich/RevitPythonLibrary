@@ -25,19 +25,18 @@ clr.AddReference("RevitAPIUI")
 clr.AddReference("RevitServices")
 clr.AddReference("RevitNodes")
 
-from System.Collections.Generic import List
-from Autodesk.Revit.DB import (
-    FilteredElementCollector, ElementId, Line, Arc, Plane, XYZ, Frame,
+from System.Collections.Generic import List  # noqa: E402
+from Autodesk.Revit.DB import (  # noqa: E402
+    ElementId, Line, Arc, Plane, XYZ, Frame,
     NurbSpline, CurveLoop, BoundingBoxXYZ, Transform, GeometryObject,
     GeometryCreationUtilities, SolidOptions, BooleanOperationsUtils,
     BooleanOperationsType, DirectShape, BuiltInCategory, VertexPair,
-    IntersectionResultArray, ClosestPointsPairBetweenTwoCurves,
     RuledSurface, UnitUtils, UnitTypeId
 )
-from RevitServices.Persistence import DocumentManager
-from RevitServices.Transactions import TransactionManager
+from RevitServices.Persistence import DocumentManager  # noqa: E402
+from RevitServices.Transactions import TransactionManager  # noqa: E402
 
-import Revit
+import Revit  # noqa: E402
 clr.ImportExtensions(Revit.Elements)
 clr.ImportExtensions(Revit.GeometryConversion)
 
@@ -851,7 +850,6 @@ def puntos_a_array_numpy(puntos_xyz):
     try:
         import numpy as np
     except ImportError:
-        print("numpy no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
         return None
     return np.array(
         [[p.X * 0.3048, p.Y * 0.3048, p.Z * 0.3048] for p in puntos_xyz]
@@ -894,7 +892,6 @@ def distancias_entre_puntos_numpy(puntos_xyz):
     try:
         import numpy as np
     except ImportError:
-        print("numpy no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
         return None
     arr = puntos_a_array_numpy(puntos_xyz)
     if arr is None:
@@ -940,7 +937,6 @@ def ajuste_plano_numpy(puntos_xyz):
     try:
         import numpy as np
     except ImportError:
-        print("numpy no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
         return None
     arr = puntos_a_array_numpy(puntos_xyz)
     if arr is None:
