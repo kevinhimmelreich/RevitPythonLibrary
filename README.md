@@ -49,6 +49,8 @@ from lib_arquitectura import obtener_habitaciones, crear_suelo_desde_habitacion
 
 ### lib_general — Utilidades base
 
+#### Parametros y elementos
+
 | Funcion | Descripcion |
 |---|---|
 | `unwrap(elem)` | Desenvuelve un elemento Dynamo al elemento Revit nativo |
@@ -60,19 +62,62 @@ from lib_arquitectura import obtener_habitaciones, crear_suelo_desde_habitacion
 | `establecer_valor_parametro(elem, nombre, val)` | Escribe el valor de un parametro de instancia |
 | `obtener_todos_parametros(elem)` | Todos los parametros de instancia como dict {nombre: valor} |
 | `obtener_parametros_tipo(elem)` | Todos los parametros de TIPO como dict {nombre: valor} |
+| `agrupar_por_parametro(elems, nombre)` | Agrupa elementos por valor de un parametro |
+| `filtrar_por_valor_parametro(cat, nombre, val)` | Filtra elementos del modelo por valor de parametro (texto) |
+| `obtener_ids_int(elems)` | Lista de IDs enteros de los elementos dados |
+| `aplanar_lista(lista)` | Aplana recursivamente una lista anidada |
+
+#### Conversiones de unidades
+
+| Funcion | Descripcion |
+|---|---|
 | `pies_a_metros(v)` | Convierte pies internos de Revit a metros |
 | `metros_a_pies(v)` | Convierte metros a pies internos de Revit |
 | `mm_a_pies(v)` | Convierte milimetros a pies internos |
 | `pies_a_mm(v)` | Convierte pies internos a milimetros |
 | `m2_a_pies2(v)` | Convierte m2 a pies2 internos |
 | `pies2_a_m2(v)` | Convierte pies2 internos a m2 |
+
+#### Transformaciones de elementos
+
+| Funcion | Descripcion |
+|---|---|
 | `copiar_elemento(elem, vector_xyz)` | Copia un elemento desplazado por un vector |
 | `mover_elemento(elem, vector_xyz)` | Mueve un elemento por un vector |
 | `eliminar_elemento(elem)` | Elimina un elemento del documento |
-| `agrupar_por_parametro(elems, nombre)` | Agrupa elementos por valor de un parametro |
-| `filtrar_por_valor_parametro(cat, nombre, val)` | Filtra elementos del modelo por valor de parametro |
-| `obtener_ids_int(elems)` | Lista de IDs enteros de los elementos dados |
-| `aplanar_lista(lista)` | Aplana recursivamente una lista anidada |
+
+#### Filtros avanzados (BoundingBox y logicos)
+
+| Funcion | Descripcion |
+|---|---|
+| `filtrar_por_boundingbox(bbox, cat_bic, tol)` | Elementos cuyo bbox intersecta con el bbox dado (BoundingBoxIntersectsFilter) |
+| `filtrar_dentro_de_bbox(bbox, cat_bic, tol)` | Elementos completamente contenidos en el bbox (BoundingBoxIsInsideFilter) |
+| `filtrar_contiene_punto(punto, cat_bic, tol)` | Elementos cuyo bbox contiene el punto XYZ dado |
+| `combinar_filtros_o(filtros)` | Combina ElementFilters con logica OR (LogicalOrFilter) |
+| `combinar_filtros_y(filtros)` | Combina ElementFilters con logica AND (LogicalAndFilter) |
+| `excluir_elementos(ids, cat_bic)` | Todos los elementos excepto los ids dados (ExclusionFilter) |
+| `obtener_anotaciones_en_vista(vista, cat_bic)` | Anotaciones/etiquetas propias de una vista (ElementOwnerViewFilter) |
+| `obtener_elementos_visibles_en_vista(vista, cat_bic)` | Elementos de modelo visibles en la vista |
+
+#### Grupos y ensamblajes
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_grupo(elementos)` | Crea un Group a partir de una lista de elementos |
+| `desagrupar(grupo)` | Desagrupa un Group y retorna los ElementId liberados |
+| `obtener_miembros_grupo(grupo)` | Elementos miembro de un Group sin desagruparlo |
+| `obtener_grupos()` | Todos los Group del documento |
+| `crear_ensamblaje(elementos, nombre)` | Crea un AssemblyInstance a partir de una lista de elementos |
+| `obtener_miembros_ensamblaje(ensamblaje)` | Elementos miembro de un AssemblyInstance |
+
+#### Planos de referencia y ejes
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_plano_referencia(p1, p2, nombre)` | Crea un ReferencePlane entre dos puntos |
+| `crear_eje(p1, p2, nombre)` | Crea un Grid (eje de proyecto) entre dos puntos |
+| `obtener_ejes()` | Todos los Grid del documento |
+| `obtener_planos_referencia()` | Todos los ReferencePlane del documento |
 
 ---
 
@@ -89,6 +134,11 @@ from lib_arquitectura import obtener_habitaciones, crear_suelo_desde_habitacion
 | `establecer_visibilidad_workset(workset_id, visible)` | Controla visibilidad por defecto de un workset |
 | `detectar_elementos_sin_workset(elems, workset_id)` | QA: elementos que no pertenecen al workset esperado |
 | `obtener_elementos_en_link(link, categorias_bic)` | FEC en documento vinculado; retorna (elementos, transform) |
+| `obtener_elemento_en_link_por_unique_id(link, uid)` | Elemento de un link buscado por UniqueId |
+| `filtrar_en_link_por_parametro(link, cat, param, val)` | Filtra en link por valor de parametro de instancia |
+| `filtrar_en_link_por_boundingbox(link, bbox, cat, tol)` | Elementos del link cuyo bbox intersecta bbox del host |
+| `filtrar_en_link_dentro_de_bbox(link, bbox, cat, tol)` | Elementos del link completamente dentro del bbox del host |
+| `filtrar_en_link_contiene_punto(link, punto, cat, tol)` | Elementos del link cuyo bbox contiene el punto del host |
 | `adquirir_coordenadas_de_link(link)` | Adquiere coordenadas del proyecto desde un link Revit |
 | `copiar_elementos_desde_link(link, ids, opciones)` | Copia elementos de un link al documento activo |
 | `comparar_parametro_en_link(elems_host, link, param)` | Compara parametro entre host y link por UniqueId |
@@ -305,29 +355,130 @@ from lib_arquitectura import obtener_habitaciones, crear_suelo_desde_habitacion
 
 ### lib_vistas — Vistas
 
+#### Creacion de vistas
+
 | Funcion | Descripcion |
 |---|---|
+| `crear_vista_planta(nivel, nombre, familia_nombre)` | Vista de planta para un nivel |
 | `crear_vista_3d_isometrica(nombre)` | Vista 3D isometrica |
+| `crear_vista_3d_por_bbox(bbox, nombre)` | Vista 3D con SectionBox aplicado |
 | `crear_vista_3d_por_habitacion(hab, nombre, offset, escala)` | Vista 3D recortada al bounding box de una habitacion |
+| `crear_vista_3d_desde_seccion(seccion)` | Vista 3D equivalente a una seccion |
 | `crear_seccion_desde_curva(curva, desfase_m)` | ViewSection desde una curva |
-| `crear_vista_planta_desde_habitacion(hab, nombre, escala)` | Vista de planta para una habitacion |
 | `crear_alzado_en_punto(punto, vista_planta)` | Alzado en un punto de la vista de planta |
 | `crear_cartela(vista, esquina_inf_izq, esquina_sup_der)` | Callout en una vista de planta |
 | `crear_vista_detalle(elem)` | Vista de detalle del bounding box de un elemento |
-| `copiar_elementos_entre_vistas(elems, vista_origen, vista_dest)` | Copia elementos de anotacion entre vistas |
-| `establecer_rango_de_vista(vista, elev_corte, elev_proy, ...)` | Asigna el rango de vista (plan view range) |
+| `crear_vista_planta_desde_habitacion(hab, nombre, escala)` | Vista de planta recortada a una habitacion |
+
+#### Duplicar y transformar vistas
+
+| Funcion | Descripcion |
+|---|---|
+| `duplicar_vista(vista, nombre)` | Duplica una vista como copia independiente |
+| `duplicar_vista_dependiente(vista, nombre)` | Duplica como vista dependiente |
+| `duplicar_vistas(vistas, nombres)` | Duplica varias vistas en bloque |
+| `convertir_vista_a_independiente(vista)` | Convierte vista dependiente en independiente |
+| `copiar_elementos_entre_vistas(origen, destino, elems, tf)` | Copia anotaciones entre vistas |
+| `girar_elemento_en_vista(elem, vista, angulo_grados)` | Gira un elemento alrededor de su eje Z local |
+
+#### Recorte de vistas (CropBox)
+
+| Funcion | Descripcion |
+|---|---|
+| `activar_cropbox(vista, activar)` | Activa o desactiva el crop box |
+| `establecer_cropbox(vista, bbox)` | Asigna un BoundingBoxXYZ como crop box |
+| `establecer_cropbox_desde_elemento(vista, elem)` | Crop box desde el bounding box de un elemento |
+| `establecer_recorte_por_curvas(vista, curvas)` | Recorte poligonal arbitrario |
+| `establecer_recorte_con_offset(vista, curvas, offset_m)` | Recorte con desfase en metros |
+| `copiar_recorte_entre_vistas(vista_origen, vista_dest)` | Copia la forma de recorte a otra vista |
+| `obtener_forma_recorte(vista)` | Curvas de la forma de recorte actual |
+
+#### Propiedades de vista
+
+| Funcion | Descripcion |
+|---|---|
 | `establecer_escala(vista, escala)` | Escala de la vista |
 | `establecer_nivel_detalle(vista, nivel_detalle)` | Nivel de detalle (Bajo/Medio/Alto) |
 | `establecer_estilo_visual(vista, estilo)` | Estilo visual (Alambre/Ocultas/Realista/etc.) |
-| `ocultar_elementos_en_vista(elems, vista)` | Oculta elementos en la vista |
-| `mostrar_elementos_en_vista(elems, vista)` | Muestra elementos previamente ocultos |
-| `activar_cropbox(vista, activar)` | Activa o desactiva el crop box |
-| `establecer_cropbox(vista, bbox)` | Asigna un BoundingBoxXYZ como crop box |
-| `girar_elemento_en_vista(elem, vista, angulo_rad)` | Gira un elemento alrededor de su eje Z local |
-| `aplicar_plantilla_de_vista(vista, plantilla)` | Aplica una plantilla de vista |
-| `ocultar_categoria_en_vista(categoria, vista)` | Oculta una categoria completa en la vista |
-| `sobreescribir_grafico_elemento(elem, vista, color, ...)` | Override de color y peso de linea de un elemento |
-| `exportar_vista_a_imagen(vista, ruta, dpi, ancho_px)` | Exporta la vista a PNG |
+| `establecer_disciplina(vista, disciplina)` | Disciplina de la vista |
+| `obtener_rango_de_vista(vista_plan)` | PlanViewRange de una vista de planta |
+| `obtener_rango_vista_completo(vista_plan)` | Dict completo de planos y offsets del rango de vista |
+| `establecer_rango_de_vista(vista, plano, nivel, offset)` | Asigna nivel/offset a un plano del rango de vista |
+| `aplicar_plantilla_de_vista(vista, plantilla_id)` | Aplica una plantilla de vista por Id |
+| `aplicar_plantilla_por_nombre(vistas, nombre)` | Aplica plantilla buscando por nombre |
+
+#### Visibilidad y graficos
+
+| Funcion | Descripcion |
+|---|---|
+| `ocultar_elementos_en_vista(vista, ids)` | Oculta elementos en la vista |
+| `mostrar_elementos_en_vista(vista, ids)` | Muestra elementos previamente ocultos |
+| `ocultar_categoria_en_vista(vista, cat_bic, ocultar)` | Oculta o muestra una categoria completa |
+| `aislar_elementos_temporalmente(vista, elems)` | Aislamiento temporal de elementos |
+| `convertir_temporal_a_permanente(vista)` | Convierte aislamiento temporal a permanente |
+| `sobreescribir_grafico_elemento(vista, elem, color, ...)` | Override de color, patron y transparencia |
+| `limpiar_grafico_elemento(vista, elem)` | Elimina todos los overrides de un elemento |
+
+#### Orientacion 3D
+
+| Funcion | Descripcion |
+|---|---|
+| `establecer_orientacion_3d(vista, ojo, arriba, frente)` | Orienta una vista 3D por vectores de camara |
+| `copiar_orientacion_3d(vista_ref, vistas_dest)` | Copia orientacion de una vista 3D a otras |
+| `bloquear_vista_3d(vista, bloquear)` | Bloquea o desbloquea la orientacion |
+| `restaurar_orientacion_3d(vista)` | Restaura la orientacion guardada |
+| `obtener_section_box_3d(vista_3d)` | BoundingBoxXYZ del SectionBox en coordenadas absolutas |
+
+#### Planos (Sheets)
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_plano(numero, nombre, tipo_id)` | Crea un plano (ViewSheet) |
+| `anadir_vista_a_plano(plano, vista, posicion)` | Inserta una vista en un plano como Viewport |
+| `centrar_vista_en_plano(plano, viewport)` | Centra un Viewport en el plano |
+
+#### Exportar
+
+| Funcion | Descripcion |
+|---|---|
+| `exportar_vista_a_imagen(vista, ruta, ancho_px)` | Exporta la vista a PNG |
+| `exportar_vistas_a_imagen(vistas, ruta_base)` | Exporta varias vistas a imagen |
+
+#### Filtros de vista (ParameterFilterElement)
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_filtro_vista_por_texto(nombre, cats, param_bip, texto, cond)` | ParameterFilterElement de texto (igual/contiene/empieza/termina/no_igual) |
+| `crear_filtro_vista_por_entero(nombre, cats, param_bip, val, cond)` | ParameterFilterElement de entero (igual/mayor/menor/mayor_igual/menor_igual) |
+| `crear_filtro_vista_combinado(nombre, cats, filtros, logica)` | Combina filtros existentes con logica OR/AND |
+| `aplicar_filtro_a_vista(vista, filtro_id, visible, ogs)` | Aplica un filtro a una vista con visibilidad y override |
+| `eliminar_filtro_de_vista(vista, filtro_id)` | Elimina un filtro de una vista |
+| `listar_filtros_de_vista(vista)` | Filtros aplicados a la vista como lista de dicts |
+| `obtener_filtros_del_documento()` | Todos los ParameterFilterElement del documento |
+
+#### Planificaciones (Schedules)
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_planificacion(cat_bic, nombre, parametros_bip)` | Crea una ViewSchedule con los campos indicados |
+| `anadir_campo_a_planificacion(planif, param_bip, tipo)` | Añade un campo a una planificacion existente |
+| `ordenar_planificacion_por_campo(planif, campo, asc)` | Ordena la planificacion por un ScheduleField |
+| `obtener_datos_de_planificacion(planif)` | Contenido de la planificacion como lista de dicts |
+| `obtener_planificaciones()` | Todas las ViewSchedule del documento |
+
+#### Anotaciones de vista
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_nota_de_texto(vista, pos, texto, tipo_id)` | Crea una TextNote en la vista |
+| `etiquetar_elemento(vista, ref, pos, modo, orient, lider)` | Crea un IndependentTag para el elemento referenciado |
+| `etiquetar_lista_de_elementos(vista, pares_ref_pos, modo)` | Etiqueta varios elementos en bloque |
+
+#### Elementos de redaccion
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_region_rellena(vista, bucles_curvas, tipo_id)` | Crea una FilledRegion en la vista |
 
 ---
 
