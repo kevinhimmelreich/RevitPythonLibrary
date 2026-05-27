@@ -125,4 +125,4 @@ e `.IntegerValue` (Revit 2023 y anteriores).
 
 ## Licencia
 
-MIT — uso libre con atribucion a Kevin Himmelreich
+MIT — uso libre - Kevin Himmelreich
