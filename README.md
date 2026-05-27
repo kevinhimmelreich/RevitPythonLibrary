@@ -479,6 +479,20 @@ from lib_arquitectura import obtener_habitaciones, crear_suelo_desde_habitacion
 | Funcion | Descripcion |
 |---|---|
 | `crear_region_rellena(vista, bucles_curvas, tipo_id)` | Crea una FilledRegion en la vista |
+| `crear_curva_detalle(vista, curva)` | Crea una DetailCurve (linea de detalle) en la vista |
+| `crear_curvas_detalle(vista, curvas)` | Crea varias DetailCurve en bloque |
+| `crear_cota_lineal(vista, linea, referencias, tipo_id)` | Dimension lineal a partir de linea y References |
+
+#### Revisiones
+
+| Funcion | Descripcion |
+|---|---|
+| `crear_revision(descripcion, fecha, emitida_por)` | Crea una nueva Revision en el documento |
+| `obtener_revisiones()` | Todas las Revision del documento en orden de secuencia |
+| `crear_nube_revision(vista, bucles_curvas, revision_id)` | RevisionCloud en la vista para la revision indicada |
+| `obtener_nubes_en_vista(vista)` | Todas las RevisionCloud de una vista |
+| `asignar_revision_a_plano(plano, revision_id, asignar)` | Asigna o quita una revision de un plano |
+| `establecer_numeracion_revision(tipo)` | Tipo de numeracion de revisiones (PerSheet/Shared) |
 
 ---
 
