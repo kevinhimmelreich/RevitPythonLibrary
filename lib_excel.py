@@ -404,9 +404,27 @@ def leer_excel_pandas(ruta, nombre_hoja=0):
     try:
         import pandas as pd
     except ImportError:
-        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
         return None
     return pd.read_excel(ruta, sheet_name=nombre_hoja)
+
+
+def leer_todas_las_hojas_pandas(ruta):
+    """
+    Lee todas las hojas de un Excel a un dict de DataFrames.
+
+    Args:
+        ruta: ruta completa al archivo .xlsx
+
+    Returns:
+        dict {nombre_hoja: DataFrame}, o None si pandas no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        return None
+    return pd.read_excel(ruta, sheet_name=None)
 
 
 def escribir_excel_pandas(df, ruta, nombre_hoja="Datos", indice=False):
@@ -426,11 +444,34 @@ def escribir_excel_pandas(df, ruta, nombre_hoja="Datos", indice=False):
     Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
     """
     try:
-        import pandas  # noqa: F401 — solo comprueba disponibilidad
+        import pandas  # noqa: F401
     except ImportError:
-        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
         return None
     df.to_excel(ruta, sheet_name=nombre_hoja, index=indice)
+    return ruta
+
+
+def escribir_multiples_hojas_pandas(dict_dfs, ruta, indice=False):
+    """
+    Exporta varios DataFrames a distintas hojas de un mismo Excel.
+
+    Args:
+        dict_dfs: dict {nombre_hoja: DataFrame}
+        ruta: ruta completa al archivo .xlsx de salida
+        indice: si True incluye el indice de cada DataFrame
+
+    Returns:
+        ruta del archivo creado, o None si pandas no esta disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        return None
+    with pd.ExcelWriter(ruta, engine="openpyxl") as writer:
+        for nombre_hoja, df in dict_dfs.items():
+            df.to_excel(writer, sheet_name=str(nombre_hoja), index=indice)
     return ruta
 
 
@@ -452,7 +493,6 @@ def exportar_parametros_a_dataframe(elementos, nombres_params):
     try:
         import pandas as pd
     except ImportError:
-        print("pandas no disponible. Requiere CPython 3.x (Dynamo 2.13+).")
         return None
     filas = []
     for elem in elementos:
@@ -470,3 +510,197 @@ def exportar_parametros_a_dataframe(elementos, nombres_params):
             fila[nombre] = _obtener_valor_param(param)
         filas.append(fila)
     return pd.DataFrame(filas)
+
+
+def aplicar_dataframe_a_parametros(df, col_id="ElementId",
+                                   cols_ignorar=None):
+    """
+    Aplica los valores de un DataFrame a los parametros de los elementos
+    Revit. Inverso de exportar_parametros_a_dataframe.
+    Permite el flujo: leer Excel -> editar en pandas -> escribir a Revit.
+
+    Args:
+        df: pandas DataFrame con columna de ElementId y parametros
+        col_id: nombre de la columna con el ElementId (defecto "ElementId")
+        cols_ignorar: lista adicional de columnas a no escribir
+
+    Returns:
+        dict {ok: [ids_correctos], error: [mensajes_error]}
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        return None
+    ignorar = {"ElementId", "UniqueId", "Categoria", col_id}
+    if cols_ignorar:
+        ignorar.update(cols_ignorar)
+    cols = [c for c in df.columns if c not in ignorar]
+    resultado = {"ok": [], "error": []}
+    _iniciar("Aplicar DataFrame a Revit")
+    for _, fila in df.iterrows():
+        try:
+            elem = doc.GetElement(ElementId(int(fila[col_id])))
+            if elem is None:
+                resultado["error"].append(
+                    "ElementId {} no encontrado".format(fila[col_id])
+                )
+                continue
+            for col in cols:
+                valor = fila[col]
+                if pd.isna(valor):
+                    continue
+                param = elem.LookupParameter(col)
+                if param and not param.IsReadOnly:
+                    t = param.StorageType
+                    if t == StorageType.String:
+                        param.Set(str(valor))
+                    elif t == StorageType.Integer:
+                        param.Set(int(valor))
+                    elif t == StorageType.Double:
+                        param.Set(float(valor))
+            resultado["ok"].append(int(fila[col_id]))
+        except Exception as exc:
+            resultado["error"].append(str(exc))
+    _finalizar()
+    return resultado
+
+
+def excel_a_parametros_revit(ruta_excel, nombre_hoja,
+                              col_id="ElementId", cols_ignorar=None):
+    """
+    Flujo completo: lee un Excel con pandas y aplica los valores
+    directamente a los parametros de los elementos Revit.
+
+    Args:
+        ruta_excel: ruta completa al archivo .xlsx
+        nombre_hoja: nombre o indice de la hoja a leer
+        col_id: columna con el ElementId (defecto "ElementId")
+        cols_ignorar: columnas adicionales a omitir al escribir
+
+    Returns:
+        dict {ok: [ids], error: [mensajes]}, o None si pandas no disponible
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    df = leer_excel_pandas(ruta_excel, nombre_hoja)
+    if df is None:
+        return None
+    return aplicar_dataframe_a_parametros(df, col_id, cols_ignorar)
+
+
+def dataframe_a_excel_formato(df, ruta, nombre_hoja="Datos",
+                              ancho_auto=True, cabecera_negrita=True):
+    """
+    Exporta un DataFrame a Excel con formato: cabecera en negrita y
+    ancho de columnas ajustado automaticamente al contenido.
+    Requiere openpyxl.
+
+    Args:
+        df: pandas DataFrame a exportar
+        ruta: ruta completa al archivo .xlsx
+        nombre_hoja: nombre de la hoja de destino
+        ancho_auto: si True ajusta el ancho de columnas al contenido
+        cabecera_negrita: si True pone la cabecera en negrita
+
+    Returns:
+        ruta del archivo creado, o None si faltan dependencias
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+        from openpyxl.styles import Font
+    except ImportError:
+        return None
+    with pd.ExcelWriter(ruta, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name=nombre_hoja, index=False)
+        ws = writer.sheets[nombre_hoja]
+        if cabecera_negrita:
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+        if ancho_auto:
+            for col in ws.columns:
+                max_len = max(
+                    len(str(cell.value)) if cell.value else 0
+                    for cell in col
+                )
+                ws.column_dimensions[
+                    col[0].column_letter
+                ].width = min(max_len + 4, 60)
+    return ruta
+
+
+def schedule_a_dataframe_pandas(nombre_schedule):
+    """
+    Convierte una ViewSchedule de Revit en un pandas DataFrame.
+    La primera fila se usa como cabecera de columnas.
+
+    Args:
+        nombre_schedule: nombre exacto de la ViewSchedule en Revit
+
+    Returns:
+        pandas DataFrame, o None si no se encuentra o falta pandas
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        return None
+    schedules = list(
+        FilteredElementCollector(doc).OfClass(ViewSchedule).ToElements()
+    )
+    sch = next((s for s in schedules if s.Name == nombre_schedule), None)
+    if sch is None:
+        return None
+    sec = sch.GetTableData().GetSectionData(SectionType.Body)
+    filas = [
+        [
+            sch.GetCellText(SectionType.Body, row, col_i)
+            for col_i in range(sec.NumberOfColumns)
+        ]
+        for row in range(sec.NumberOfRows)
+    ]
+    if len(filas) < 2:
+        return pd.DataFrame()
+    return pd.DataFrame(filas[1:], columns=filas[0])
+
+
+def pivot_dataframe_elementos(elementos, nombres_params,
+                              col_indice, col_columnas, col_valores,
+                              aggfunc="sum"):
+    """
+    Crea una tabla pivot a partir de parametros de elementos Revit.
+    Util para resumir datos por nivel/sistema/categoria vs parametro.
+
+    Args:
+        elementos: lista de elementos Revit
+        nombres_params: lista de parametros a extraer (debe incluir
+                        col_indice, col_columnas y col_valores)
+        col_indice: parametro para las filas de la pivot
+        col_columnas: parametro para las columnas de la pivot
+        col_valores: parametro numerico a agregar
+        aggfunc: funcion de agregacion ("sum", "mean", "count", "max")
+
+    Returns:
+        pandas DataFrame pivot, o None si faltan dependencias
+
+    Revit: 2024-2026 | CPython 3.x (Dynamo 2.13+)
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        return None
+    df = exportar_parametros_a_dataframe(elementos, nombres_params)
+    if df is None:
+        return None
+    df[col_valores] = pd.to_numeric(df[col_valores], errors="coerce")
+    return df.pivot_table(
+        index=col_indice,
+        columns=col_columnas,
+        values=col_valores,
+        aggfunc=aggfunc,
+        fill_value=0
+    )
