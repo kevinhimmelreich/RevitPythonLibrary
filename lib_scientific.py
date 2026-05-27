@@ -94,7 +94,8 @@ def _asegurar(paquete, nombre_import=None):
     Comprueba si un paquete Python esta disponible e intenta instalarlo
     automaticamente via pip si no lo esta.
     Solo funciona en CPython 3.x (Dynamo 2.13+); en IronPython 2.7
-    devuelve False directamente.
+    devuelve False directamente sin intentar nada.
+    No genera ninguna salida — el feedback viene por instalar_dependencias_scientific().
 
     Args:
         paquete: nombre del paquete para pip (ej. "Pillow", "scipy")
@@ -113,10 +114,8 @@ def _asegurar(paquete, nombre_import=None):
     except ImportError:
         pass
     if not PY3:
-        print(paquete + " no disponible en IronPython 2.7.")
         return False
     import subprocess
-    print("Instalando " + paquete + " via pip...")
     try:
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", paquete],
@@ -125,37 +124,87 @@ def _asegurar(paquete, nombre_import=None):
             timeout=120
         )
         __import__(nombre_import)
-        print(paquete + " instalado correctamente.")
         return True
-    except Exception as exc:
-        print("Error instalando " + paquete + ": " + str(exc))
+    except Exception:
         return False
+
+
+_DEPENDENCIAS = [
+    ("numpy",      "numpy"),
+    ("pandas",     "pandas"),
+    ("scipy",      "scipy"),
+    ("matplotlib", "matplotlib"),
+    ("shapely",    "shapely"),
+    ("networkx",   "networkx"),
+    ("Pillow",     "PIL"),
+]
 
 
 def instalar_dependencias_scientific():
     """
     Instala todas las dependencias de lib_scientific usando pip.
     Llamar una vez al inicio en un entorno nuevo (CPython 3.x / Dynamo).
-    En IronPython 2.7 no hace nada.
 
     Returns:
-        dict {paquete: bool} indicando si cada paquete esta disponible
+        dict {paquete: str} con el estado de cada dependencia:
+        - "OK - ya disponible"
+        - "OK - instalado"
+        - "No disponible en IronPython 2.7"
+        - "ERROR: <motivo>"
 
     Ejemplo en Dynamo:
         from lib_scientific import instalar_dependencias_scientific
         OUT = [instalar_dependencias_scientific()]
-        # {"numpy": True, "pandas": True, "scipy": True, ...}
     """
-    dependencias = [
-        ("numpy",      "numpy"),
-        ("pandas",     "pandas"),
-        ("scipy",      "scipy"),
-        ("matplotlib", "matplotlib"),
-        ("shapely",    "shapely"),
-        ("networkx",   "networkx"),
-        ("Pillow",     "PIL"),
-    ]
-    return {pkg: _asegurar(pkg, imp) for pkg, imp in dependencias}
+    if not PY3:
+        return {
+            pkg: "No disponible en IronPython 2.7"
+            for pkg, _ in _DEPENDENCIAS
+        }
+    import subprocess
+    resultado = {}
+    for paquete, nombre_import in _DEPENDENCIAS:
+        try:
+            __import__(nombre_import)
+            resultado[paquete] = "OK - ya disponible"
+            continue
+        except ImportError:
+            pass
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", paquete],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=120
+            )
+            __import__(nombre_import)
+            resultado[paquete] = "OK - instalado"
+        except Exception as exc:
+            resultado[paquete] = "ERROR: " + str(exc)
+    return resultado
+
+
+def estado_dependencias():
+    """
+    Comprueba que dependencias estan disponibles sin instalar nada.
+    Util para diagnosticar el entorno antes de usar las funciones.
+
+    Returns:
+        dict {paquete: bool} indicando disponibilidad de cada biblioteca
+
+    Ejemplo en Dynamo:
+        from lib_scientific import estado_dependencias
+        OUT = [estado_dependencias()]
+        # {"numpy": True, "pandas": True, "scipy": False, ...}
+    """
+    resultado = {}
+    for paquete, nombre_import in _DEPENDENCIAS:
+        try:
+            __import__(nombre_import)
+            resultado[paquete] = True
+        except ImportError:
+            resultado[paquete] = False
+    return resultado
 
 
 # ── matplotlib: conversion a Bitmap para Dynamo ──────────────────────────────
@@ -183,7 +232,6 @@ def figura_a_bitmap(fig):
         from System.Drawing import Bitmap
         from System.IO import MemoryStream
     except Exception:
-        print("System.Drawing no disponible (solo Dynamo / .NET).")
         return None
     import numpy as np
     import io as _io
