@@ -44,7 +44,9 @@ from Autodesk.Revit.DB import (  # noqa: E402
     ScheduleSortOrder, SectionType,
     TextNote, TextNoteOptions, TextNoteType, HorizontalTextAlignment,
     IndependentTag, TagMode, TagOrientation,
-    FilledRegion, FilledRegionType
+    FilledRegion, FilledRegionType,
+    Revision, RevisionCloud, RevisionNumbering,
+    ReferenceArray
 )
 from RevitServices.Persistence import DocumentManager  # noqa: E402
 from RevitServices.Transactions import TransactionManager  # noqa: E402
@@ -1925,3 +1927,213 @@ def crear_region_rellena(vista, bucles_curvas, tipo_id=None):
     region = FilledRegion.Create(doc, tipo_id, vista.Id, loops)
     _finalizar()
     return region
+
+
+def crear_curva_detalle(vista, curva):
+    """
+    Crea una DetailCurve (linea de detalle) en la vista.
+
+    Args:
+        vista: View de Revit
+        curva: curva Revit (Line, Arc, etc.)
+
+    Returns:
+        DetailCurve creada
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    _iniciar()
+    detalle = doc.Create.NewDetailCurve(vista, curva)
+    _finalizar()
+    return detalle
+
+
+def crear_curvas_detalle(vista, curvas):
+    """
+    Crea varias DetailCurve en la vista en una sola transaccion.
+
+    Args:
+        vista: View de Revit
+        curvas: lista de curvas Revit
+
+    Returns:
+        lista de DetailCurve creadas
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    resultado = []
+    _iniciar()
+    for c in curvas:
+        try:
+            resultado.append(doc.Create.NewDetailCurve(vista, c))
+        except Exception:
+            pass
+    _finalizar()
+    return resultado
+
+
+def crear_cota_lineal(vista, linea_cota, referencias, tipo_id=None):
+    """
+    Crea una Dimension lineal en la vista a partir de una linea y
+    una lista de References.
+
+    Args:
+        vista: View de Revit
+        linea_cota: Line de Revit que define la direccion de la cota
+        referencias: lista de Reference (caras, ejes, grids) a acotar
+        tipo_id: ElementId del DimensionType (opcional)
+
+    Returns:
+        Dimension creada
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    ref_array = ReferenceArray()
+    for r in referencias:
+        ref_array.Append(r)
+    _iniciar()
+    if tipo_id:
+        dim = doc.Create.NewDimension(vista, linea_cota, ref_array,
+                                      doc.GetElement(tipo_id))
+    else:
+        dim = doc.Create.NewDimension(vista, linea_cota, ref_array)
+    _finalizar()
+    return dim
+
+
+# ── Revisiones ────────────────────────────────────────────────────────────────
+
+def crear_revision(descripcion, fecha=None, emitida_por=None):
+    """
+    Crea una nueva Revision en el documento.
+
+    Args:
+        descripcion: texto de la descripcion de la revision
+        fecha: texto con la fecha (opcional)
+        emitida_por: texto con el emisor (opcional)
+
+    Returns:
+        Revision creada
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    _iniciar()
+    revision = Revision.Create(doc)
+    try:
+        revision.Description = descripcion
+    except Exception:
+        pass
+    if fecha:
+        try:
+            revision.RevisionDate = fecha
+        except Exception:
+            pass
+    if emitida_por:
+        try:
+            revision.IssuedBy = emitida_por
+        except Exception:
+            pass
+    _finalizar()
+    return revision
+
+
+def obtener_revisiones():
+    """
+    Retorna todas las Revision del documento en orden de secuencia.
+
+    Args:
+        (ninguno)
+
+    Returns:
+        lista de Revision ordenada por numero de secuencia
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    ids = Revision.GetAllRevisionIds(doc)
+    return [doc.GetElement(i) for i in ids]
+
+
+def crear_nube_revision(vista, bucles_curvas, revision_id):
+    """
+    Crea una RevisionCloud en la vista para la revision indicada.
+
+    Args:
+        vista: View de Revit
+        bucles_curvas: lista de CurveLoop que definen el contorno
+        revision_id: ElementId de la Revision
+
+    Returns:
+        RevisionCloud creada
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    loops = NetList[CurveLoop](bucles_curvas)
+    _iniciar()
+    nube = RevisionCloud.Create(doc, vista, revision_id, loops)
+    _finalizar()
+    return nube
+
+
+def obtener_nubes_en_vista(vista):
+    """
+    Retorna todas las RevisionCloud de una vista.
+
+    Args:
+        vista: View de Revit
+
+    Returns:
+        lista de RevisionCloud
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return list(
+        FilteredElementCollector(doc, vista.Id)
+        .OfClass(RevisionCloud)
+        .ToElements()
+    )
+
+
+def asignar_revision_a_plano(plano, revision_id, asignar=True):
+    """
+    Asigna o desasigna una revision a un plano (ViewSheet).
+
+    Args:
+        plano: ViewSheet de Revit
+        revision_id: ElementId de la Revision
+        asignar: True para asignar, False para quitar
+
+    Returns:
+        None
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    ids_actuales = set(plano.GetAdditionalRevisionIds())
+    _iniciar()
+    if asignar:
+        ids_actuales.add(revision_id)
+    else:
+        ids_actuales.discard(revision_id)
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    plano.SetAdditionalRevisionIds(
+        NetList[ElementId](ids_actuales))
+    _finalizar()
+
+
+def establecer_numeracion_revision(tipo=None):
+    """
+    Establece el tipo de numeracion para revisiones nuevas.
+
+    Args:
+        tipo: RevisionNumbering (por defecto RevisionNumbering.PerSheet)
+
+    Returns:
+        None
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if tipo is None:
+        tipo = RevisionNumbering.PerSheet
+    _iniciar()
+    Revision.SetRevisionNumbering(doc, tipo)
+    _finalizar()
