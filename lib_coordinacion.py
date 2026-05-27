@@ -29,11 +29,13 @@ from System.Collections.Generic import List  # noqa: E402
 
 from Autodesk.Revit.DB import (  # noqa: E402
     FilteredElementCollector, ElementId, Level, XYZ,
-    BuiltInParameter,
+    BuiltInParameter, StorageType,
     WorksetKindFilter, WorksetKind, FilteredWorksetCollector,
     WorksetDefaultVisibilitySettings, CategoryType,
     RevitLinkInstance, RevitLinkType, ElementMulticategoryFilter,
-    ElementTransformUtils, UnitUtils, UnitTypeId, Autodesk
+    ElementTransformUtils, UnitUtils, UnitTypeId, Autodesk,
+    BoundingBoxIntersectsFilter, BoundingBoxIsInsideFilter,
+    BoundingBoxContainsPointFilter, Outline
 )
 from RevitServices.Persistence import DocumentManager  # noqa: E402
 from RevitServices.Transactions import TransactionManager  # noqa: E402
@@ -437,6 +439,203 @@ def comparar_parametro_en_link(
             "igual": val_host == val_link,
         })
     return resultado
+
+
+def obtener_elemento_en_link_por_unique_id(link_instancia, unique_id):
+    """
+    Busca un elemento en un link Revit por su UniqueId.
+
+    Args:
+        link_instancia: RevitLinkInstance del link
+        unique_id: string con el UniqueId del elemento
+
+    Returns:
+        elemento Revit del link, o None si no se encuentra o no cargado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if not RevitLinkType.IsLoaded(doc, link_instancia.GetTypeId()):
+        return None
+    link_doc = link_instancia.GetLinkDocument()
+    return link_doc.GetElement(unique_id)
+
+
+def filtrar_en_link_por_parametro(
+        link_instancia, categoria_bic, nombre_param, valor):
+    """
+    Filtra elementos de un link por el valor de un parametro de instancia.
+    La comparacion se hace como cadena de texto.
+
+    Args:
+        link_instancia: RevitLinkInstance del link
+        categoria_bic: BuiltInCategory a colectar
+        nombre_param: nombre del parametro como string
+        valor: valor a buscar
+
+    Returns:
+        tupla (elementos_filtrados, transform_total)
+        o ([], None) si el link no esta cargado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if not RevitLinkType.IsLoaded(doc, link_instancia.GetTypeId()):
+        return [], None
+    link_doc = link_instancia.GetLinkDocument()
+    elementos = list(
+        FilteredElementCollector(link_doc)
+        .OfCategory(categoria_bic)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+    valor_str = str(valor)
+    resultado = []
+    for e in elementos:
+        p = e.LookupParameter(nombre_param)
+        if p is None:
+            continue
+        t = p.StorageType
+        if t == StorageType.String:
+            v = p.AsString()
+        elif t == StorageType.Integer:
+            v = p.AsInteger()
+        elif t == StorageType.Double:
+            v = p.AsDouble()
+        elif t == StorageType.ElementId:
+            try:
+                v = p.AsElementId().Value
+            except AttributeError:
+                v = p.AsElementId().IntegerValue
+        else:
+            continue
+        if str(v) == valor_str:
+            resultado.append(e)
+    return resultado, link_instancia.GetTotalTransform()
+
+
+def filtrar_en_link_por_boundingbox(
+        link_instancia, bbox_xyz, categoria_bic=None,
+        tolerancia_m=0.0):
+    """
+    Filtra elementos de un link cuyo bounding box intersecta con el bbox
+    dado (en coordenadas del host). Transforma el bbox al espacio del link
+    antes de aplicar BoundingBoxIntersectsFilter.
+
+    Args:
+        link_instancia: RevitLinkInstance del link
+        bbox_xyz: BoundingBoxXYZ en coordenadas del proyecto host
+        categoria_bic: BuiltInCategory opcional
+        tolerancia_m: margen de tolerancia en metros
+
+    Returns:
+        tupla (elementos_filtrados, transform_total)
+        o ([], None) si el link no esta cargado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if not RevitLinkType.IsLoaded(doc, link_instancia.GetTypeId()):
+        return [], None
+    link_doc = link_instancia.GetLinkDocument()
+    tf = link_instancia.GetTotalTransform()
+    inv = tf.Inverse
+    min_link = inv.OfPoint(bbox_xyz.Min)
+    max_link = inv.OfPoint(bbox_xyz.Max)
+    mn = XYZ(
+        min(min_link.X, max_link.X),
+        min(min_link.Y, max_link.Y),
+        min(min_link.Z, max_link.Z),
+    )
+    mx = XYZ(
+        max(min_link.X, max_link.X),
+        max(min_link.Y, max_link.Y),
+        max(min_link.Z, max_link.Z),
+    )
+    tol = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
+    outline = Outline(mn, mx)
+    filtro = BoundingBoxIntersectsFilter(outline, tol)
+    col = FilteredElementCollector(link_doc).WherePasses(filtro)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    elementos = list(col.WhereElementIsNotElementType().ToElements())
+    return elementos, tf
+
+
+def filtrar_en_link_dentro_de_bbox(
+        link_instancia, bbox_xyz, categoria_bic=None,
+        tolerancia_m=0.0):
+    """
+    Filtra elementos de un link completamente contenidos dentro del bbox
+    del host. Usa BoundingBoxIsInsideFilter en espacio del link.
+
+    Args:
+        link_instancia: RevitLinkInstance del link
+        bbox_xyz: BoundingBoxXYZ en coordenadas del proyecto host
+        categoria_bic: BuiltInCategory opcional
+        tolerancia_m: margen de tolerancia en metros
+
+    Returns:
+        tupla (elementos_filtrados, transform_total)
+        o ([], None) si el link no esta cargado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if not RevitLinkType.IsLoaded(doc, link_instancia.GetTypeId()):
+        return [], None
+    link_doc = link_instancia.GetLinkDocument()
+    tf = link_instancia.GetTotalTransform()
+    inv = tf.Inverse
+    min_link = inv.OfPoint(bbox_xyz.Min)
+    max_link = inv.OfPoint(bbox_xyz.Max)
+    mn = XYZ(
+        min(min_link.X, max_link.X),
+        min(min_link.Y, max_link.Y),
+        min(min_link.Z, max_link.Z),
+    )
+    mx = XYZ(
+        max(min_link.X, max_link.X),
+        max(min_link.Y, max_link.Y),
+        max(min_link.Z, max_link.Z),
+    )
+    tol = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
+    outline = Outline(mn, mx)
+    filtro = BoundingBoxIsInsideFilter(outline, tol)
+    col = FilteredElementCollector(link_doc).WherePasses(filtro)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    elementos = list(col.WhereElementIsNotElementType().ToElements())
+    return elementos, tf
+
+
+def filtrar_en_link_contiene_punto(
+        link_instancia, punto_xyz, categoria_bic=None,
+        tolerancia_m=0.0):
+    """
+    Filtra elementos de un link cuyo bounding box contiene el punto
+    dado (en coordenadas del host).
+
+    Args:
+        link_instancia: RevitLinkInstance del link
+        punto_xyz: XYZ en coordenadas del proyecto host
+        categoria_bic: BuiltInCategory opcional
+        tolerancia_m: margen de tolerancia en metros
+
+    Returns:
+        tupla (elementos_filtrados, transform_total)
+        o ([], None) si el link no esta cargado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if not RevitLinkType.IsLoaded(doc, link_instancia.GetTypeId()):
+        return [], None
+    link_doc = link_instancia.GetLinkDocument()
+    tf = link_instancia.GetTotalTransform()
+    punto_link = tf.Inverse.OfPoint(punto_xyz)
+    tol = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
+    filtro = BoundingBoxContainsPointFilter(punto_link, tol)
+    col = FilteredElementCollector(link_doc).WherePasses(filtro)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    elementos = list(col.WhereElementIsNotElementType().ToElements())
+    return elementos, tf
 
 
 # ── Deteccion de colisiones ──────────────────────────────────────────────────

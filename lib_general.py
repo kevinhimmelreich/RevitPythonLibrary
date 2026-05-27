@@ -25,8 +25,12 @@ clr.AddReference("RevitServices")
 clr.AddReference("RevitNodes")
 
 from Autodesk.Revit.DB import (  # noqa: E402
-    FilteredElementCollector, StorageType,
-    ElementTransformUtils, UnitUtils, UnitTypeId
+    FilteredElementCollector, StorageType, ElementId,
+    ElementTransformUtils, UnitUtils, UnitTypeId,
+    BoundingBoxIntersectsFilter, BoundingBoxIsInsideFilter,
+    BoundingBoxContainsPointFilter, Outline,
+    LogicalOrFilter, LogicalAndFilter, ExclusionFilter,
+    ElementOwnerViewFilter, ElementFilter
 )
 from RevitServices.Persistence import DocumentManager  # noqa: E402
 from RevitServices.Transactions import TransactionManager  # noqa: E402
@@ -487,3 +491,178 @@ def obtener_parametros_tipo(elemento):
         except Exception:
             resultado[nombre] = None
     return resultado
+
+
+def filtrar_por_boundingbox(bbox_xyz, categoria_bic=None,
+                            tolerancia_m=0.0):
+    """
+    Retorna elementos cuyo bounding box intersecta con el bbox dado.
+    Usa BoundingBoxIntersectsFilter (filtro rapido nativo de Revit).
+
+    Args:
+        bbox_xyz: BoundingBoxXYZ de Revit que define la zona de busqueda
+        categoria_bic: BuiltInCategory opcional para limitar la busqueda
+        tolerancia_m: margen adicional en metros
+
+    Returns:
+        lista de elementos que intersectan el bbox
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    tol = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
+    outline = Outline(bbox_xyz.Min, bbox_xyz.Max)
+    filtro = BoundingBoxIntersectsFilter(outline, tol)
+    col = FilteredElementCollector(doc).WherePasses(filtro)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    return list(col.WhereElementIsNotElementType().ToElements())
+
+
+def filtrar_dentro_de_bbox(bbox_xyz, categoria_bic=None,
+                           tolerancia_m=0.0):
+    """
+    Retorna elementos cuyos bounding boxes estan completamente contenidos
+    dentro del bbox dado. Usa BoundingBoxIsInsideFilter.
+
+    Args:
+        bbox_xyz: BoundingBoxXYZ de Revit que define la zona
+        categoria_bic: BuiltInCategory opcional
+        tolerancia_m: margen de tolerancia en metros
+
+    Returns:
+        lista de elementos cuyos bboxes estan dentro del bbox dado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    tol = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
+    outline = Outline(bbox_xyz.Min, bbox_xyz.Max)
+    filtro = BoundingBoxIsInsideFilter(outline, tol)
+    col = FilteredElementCollector(doc).WherePasses(filtro)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    return list(col.WhereElementIsNotElementType().ToElements())
+
+
+def filtrar_contiene_punto(punto_xyz, categoria_bic=None,
+                           tolerancia_m=0.0):
+    """
+    Retorna elementos cuyo bounding box contiene el punto dado.
+    Usa BoundingBoxContainsPointFilter.
+
+    Args:
+        punto_xyz: XYZ del punto a buscar
+        categoria_bic: BuiltInCategory opcional
+        tolerancia_m: margen de tolerancia en metros
+
+    Returns:
+        lista de elementos cuyo bbox contiene el punto
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    tol = UnitUtils.ConvertToInternalUnits(tolerancia_m, UnitTypeId.Meters)
+    filtro = BoundingBoxContainsPointFilter(punto_xyz, tol)
+    col = FilteredElementCollector(doc).WherePasses(filtro)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    return list(col.WhereElementIsNotElementType().ToElements())
+
+
+def combinar_filtros_o(filtros):
+    """
+    Combina una lista de ElementFilter con logica OR.
+    Util para buscar elementos de varias clases o condiciones a la vez.
+
+    Args:
+        filtros: lista de ElementFilter de Revit
+
+    Returns:
+        LogicalOrFilter combinado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    lista = NetList[ElementFilter](filtros)
+    return LogicalOrFilter(lista)
+
+
+def combinar_filtros_y(filtros):
+    """
+    Combina una lista de ElementFilter con logica AND.
+    Permite encadenar condiciones que deben cumplirse simultaneamente.
+
+    Args:
+        filtros: lista de ElementFilter de Revit
+
+    Returns:
+        LogicalAndFilter combinado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    lista = NetList[ElementFilter](filtros)
+    return LogicalAndFilter(lista)
+
+
+def excluir_elementos(ids_excluir, categoria_bic=None):
+    """
+    Colecta elementos del documento excluyendo los ids dados.
+    Usa ExclusionFilter.
+
+    Args:
+        ids_excluir: lista de ElementId a excluir
+        categoria_bic: BuiltInCategory opcional para limitar la busqueda
+
+    Returns:
+        lista de elementos que NO estan en ids_excluir
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    lista = NetList[ElementId](ids_excluir)
+    filtro = ExclusionFilter(lista)
+    col = FilteredElementCollector(doc).WherePasses(filtro)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    return list(col.WhereElementIsNotElementType().ToElements())
+
+
+def obtener_anotaciones_en_vista(vista, categoria_bic=None):
+    """
+    Retorna los elementos especificos de vista (anotaciones, etiquetas,
+    lineas de detalle…) de la vista indicada.
+    Usa ElementOwnerViewFilter que solo devuelve elementos propios de vista.
+
+    Args:
+        vista: View de Revit
+        categoria_bic: BuiltInCategory opcional
+
+    Returns:
+        lista de elementos de anotacion de la vista
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    filtro = ElementOwnerViewFilter(vista.Id)
+    col = FilteredElementCollector(doc).WherePasses(filtro)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    return list(col.ToElements())
+
+
+def obtener_elementos_visibles_en_vista(vista, categoria_bic=None):
+    """
+    Retorna los elementos de modelo visibles en la vista usando el
+    colector de vista (FilteredElementCollector con Id de vista).
+
+    Args:
+        vista: View de Revit
+        categoria_bic: BuiltInCategory opcional
+
+    Returns:
+        lista de elementos visibles en la vista
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    col = FilteredElementCollector(doc, vista.Id)
+    if categoria_bic is not None:
+        col = col.OfCategory(categoria_bic)
+    return list(col.WhereElementIsNotElementType().ToElements())

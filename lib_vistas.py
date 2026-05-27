@@ -36,7 +36,10 @@ from Autodesk.Revit.DB import (  # noqa: E402
     BoundingBoxXYZ, Transform, XYZ, Line, CurveLoop,
     ElementTransformUtils, OverrideGraphicSettings, Color,
     ViewOrientation3D, ImageExportOptions, ImageResolution,
-    ImageFileType, ExportRange, UnitUtils, UnitTypeId
+    ImageFileType, ExportRange, UnitUtils, UnitTypeId,
+    ParameterFilterElement, ParameterFilterRuleFactory,
+    ElementParameterFilter,
+    LogicalOrFilter, LogicalAndFilter, ElementFilter
 )
 from RevitServices.Persistence import DocumentManager  # noqa: E402
 from RevitServices.Transactions import TransactionManager  # noqa: E402
@@ -1447,3 +1450,209 @@ def exportar_vistas_a_imagen(vistas, ruta_base, formato=None):
     opciones.HLRandWFViewsFileType = formato
     doc.ExportImage(opciones)
     return ruta_base
+
+
+# ── Filtros de vista (ParameterFilterElement) ─────────────────────────────────
+
+def _cat_ids_net(categorias_bic):
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    return NetList[ElementId](ElementId(c) for c in categorias_bic)
+
+
+def crear_filtro_vista_por_texto(
+        nombre_filtro, categorias_bic, param_bip, texto,
+        condicion="igual"):
+    """
+    Crea un ParameterFilterElement de texto y lo registra en el documento.
+
+    Args:
+        nombre_filtro: nombre del filtro en Revit
+        categorias_bic: lista de BuiltInCategory
+        param_bip: BuiltInParameter del parametro a filtrar
+        texto: valor de texto a comparar
+        condicion: "igual", "contiene", "empieza_con", "termina_con",
+            "no_igual"
+
+    Returns:
+        ParameterFilterElement creado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    cat_ids = _cat_ids_net(categorias_bic)
+    param_id = ElementId(param_bip)
+    fab = ParameterFilterRuleFactory
+    if condicion == "contiene":
+        regla = fab.CreateContainsRule(param_id, texto, False)
+    elif condicion == "empieza_con":
+        regla = fab.CreateBeginsWithRule(param_id, texto, False)
+    elif condicion == "termina_con":
+        regla = fab.CreateEndsWithRule(param_id, texto, False)
+    elif condicion == "no_igual":
+        regla = fab.CreateNotEqualsRule(param_id, texto)
+    else:
+        regla = fab.CreateEqualsRule(param_id, texto)
+    ef = ElementParameterFilter(regla)
+    _iniciar()
+    filtro = ParameterFilterElement.Create(doc, nombre_filtro, cat_ids, ef)
+    _finalizar()
+    return filtro
+
+
+def crear_filtro_vista_por_entero(
+        nombre_filtro, categorias_bic, param_bip, valor,
+        condicion="igual"):
+    """
+    Crea un ParameterFilterElement de entero y lo registra en el documento.
+
+    Args:
+        nombre_filtro: nombre del filtro en Revit
+        categorias_bic: lista de BuiltInCategory
+        param_bip: BuiltInParameter del parametro a filtrar
+        valor: entero a comparar
+        condicion: "igual", "mayor", "menor", "mayor_igual",
+            "menor_igual", "no_igual"
+
+    Returns:
+        ParameterFilterElement creado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    cat_ids = _cat_ids_net(categorias_bic)
+    param_id = ElementId(param_bip)
+    fab = ParameterFilterRuleFactory
+    if condicion == "mayor":
+        regla = fab.CreateGreaterRule(param_id, int(valor))
+    elif condicion == "menor":
+        regla = fab.CreateLessRule(param_id, int(valor))
+    elif condicion == "mayor_igual":
+        regla = fab.CreateGreaterOrEqualRule(param_id, int(valor))
+    elif condicion == "menor_igual":
+        regla = fab.CreateLessOrEqualRule(param_id, int(valor))
+    elif condicion == "no_igual":
+        regla = fab.CreateNotEqualsRule(param_id, int(valor))
+    else:
+        regla = fab.CreateEqualsRule(param_id, int(valor))
+    ef = ElementParameterFilter(regla)
+    _iniciar()
+    filtro = ParameterFilterElement.Create(doc, nombre_filtro, cat_ids, ef)
+    _finalizar()
+    return filtro
+
+
+def crear_filtro_vista_combinado(
+        nombre_filtro, categorias_bic, filtros_parciales,
+        logica="o"):
+    """
+    Combina varios ParameterFilterElement existentes en un nuevo filtro
+    con logica OR o AND.
+
+    Args:
+        nombre_filtro: nombre del filtro resultante
+        categorias_bic: lista de BuiltInCategory
+        filtros_parciales: lista de ParameterFilterElement ya creados
+        logica: "o" para OR, "y" para AND
+
+    Returns:
+        ParameterFilterElement combinado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    cat_ids = _cat_ids_net(categorias_bic)
+    efs = NetList[ElementFilter](
+        [f.GetElementFilter() for f in filtros_parciales])
+    if logica == "y":
+        ef_combinado = LogicalAndFilter(efs)
+    else:
+        ef_combinado = LogicalOrFilter(efs)
+    _iniciar()
+    filtro = ParameterFilterElement.Create(
+        doc, nombre_filtro, cat_ids, ef_combinado)
+    _finalizar()
+    return filtro
+
+
+def aplicar_filtro_a_vista(
+        vista, filtro_id, visible=True, ogs=None):
+    """
+    Aplica un ParameterFilterElement a una vista con visibilidad y
+    override grafico opcionales.
+
+    Args:
+        vista: View de Revit
+        filtro_id: ElementId del ParameterFilterElement
+        visible: True para mostrar, False para ocultar elementos
+        ogs: OverrideGraphicSettings opcional
+
+    Returns:
+        None
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if ogs is None:
+        ogs = OverrideGraphicSettings()
+    _iniciar()
+    vista.AddFilter(filtro_id)
+    vista.SetFilterVisibility(filtro_id, visible)
+    vista.SetFilterOverrides(filtro_id, ogs)
+    _finalizar()
+
+
+def eliminar_filtro_de_vista(vista, filtro_id):
+    """
+    Elimina un filtro de parametro de una vista.
+
+    Args:
+        vista: View de Revit
+        filtro_id: ElementId del ParameterFilterElement a eliminar
+
+    Returns:
+        None
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    _iniciar()
+    vista.RemoveFilter(filtro_id)
+    _finalizar()
+
+
+def listar_filtros_de_vista(vista):
+    """
+    Retorna los filtros aplicados a una vista como lista de dicts.
+
+    Args:
+        vista: View de Revit
+
+    Returns:
+        lista de dicts con claves "filtro", "visible", "override"
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    resultado = []
+    for fid in vista.GetFilters():
+        filtro = doc.GetElement(fid)
+        resultado.append({
+            "filtro": filtro,
+            "visible": vista.GetFilterVisibility(fid),
+            "override": vista.GetFilterOverrides(fid),
+        })
+    return resultado
+
+
+def obtener_filtros_del_documento():
+    """
+    Retorna todos los ParameterFilterElement del documento.
+
+    Args:
+        (ninguno)
+
+    Returns:
+        lista de ParameterFilterElement
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return list(
+        FilteredElementCollector(doc)
+        .OfClass(ParameterFilterElement)
+        .ToElements()
+    )
