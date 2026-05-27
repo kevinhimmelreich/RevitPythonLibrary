@@ -30,7 +30,9 @@ from Autodesk.Revit.DB import (  # noqa: E402
     BoundingBoxIntersectsFilter, BoundingBoxIsInsideFilter,
     BoundingBoxContainsPointFilter, Outline,
     LogicalOrFilter, LogicalAndFilter, ExclusionFilter,
-    ElementOwnerViewFilter, ElementFilter
+    ElementOwnerViewFilter, ElementFilter,
+    Group, AssemblyInstance,
+    ReferencePlane, Grid, Line, XYZ
 )
 from RevitServices.Persistence import DocumentManager  # noqa: E402
 from RevitServices.Transactions import TransactionManager  # noqa: E402
@@ -666,3 +668,210 @@ def obtener_elementos_visibles_en_vista(vista, categoria_bic=None):
     if categoria_bic is not None:
         col = col.OfCategory(categoria_bic)
     return list(col.WhereElementIsNotElementType().ToElements())
+
+
+# ── Grupos y ensamblajes ──────────────────────────────────────────────────────
+
+def crear_grupo(elementos):
+    """
+    Crea un GroupType a partir de una lista de elementos y coloca
+    una instancia Group en el documento.
+
+    Args:
+        elementos: lista de elementos Revit a agrupar
+
+    Returns:
+        Group (instancia) creado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    ids = NetList[ElementId]([e.Id for e in elementos])
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    grupo = doc.Create.NewGroup(ids)
+    TransactionManager.Instance.TransactionTaskDone()
+    return grupo
+
+
+def desagrupar(grupo):
+    """
+    Desagrupa un Group y devuelve los ids de los elementos liberados.
+
+    Args:
+        grupo: Group de Revit
+
+    Returns:
+        lista de ElementId de los elementos desagrupados
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    ids = list(grupo.UngroupMembers())
+    TransactionManager.Instance.TransactionTaskDone()
+    return ids
+
+
+def obtener_miembros_grupo(grupo):
+    """
+    Retorna los elementos miembro de un Group sin desagruparlo.
+
+    Args:
+        grupo: Group de Revit
+
+    Returns:
+        lista de elementos miembro
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return [doc.GetElement(i) for i in grupo.GetMemberIds()]
+
+
+def obtener_grupos():
+    """
+    Retorna todos los Groups (instancias) del documento.
+
+    Args:
+        (ninguno)
+
+    Returns:
+        lista de Group
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return list(
+        FilteredElementCollector(doc).OfClass(Group).ToElements()
+    )
+
+
+def crear_ensamblaje(elementos, nombre=None):
+    """
+    Crea un AssemblyInstance a partir de una lista de elementos.
+
+    Args:
+        elementos: lista de elementos Revit a ensamblar
+        nombre: nombre del ensamblaje (opcional)
+
+    Returns:
+        AssemblyInstance creado, o None si falla
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    ids = NetList[ElementId]([e.Id for e in elementos])
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    try:
+        cat_id = elementos[0].Category.Id
+        ensamblaje = AssemblyInstance.Create(doc, ids, cat_id)
+        if nombre:
+            if AssemblyInstance.IsAssemblyNameUnique(doc, nombre):
+                ensamblaje.AssemblyTypeName = nombre
+        TransactionManager.Instance.TransactionTaskDone()
+        return ensamblaje
+    except Exception:
+        TransactionManager.Instance.TransactionTaskDone()
+        return None
+
+
+def obtener_miembros_ensamblaje(ensamblaje):
+    """
+    Retorna los elementos miembro de un AssemblyInstance.
+
+    Args:
+        ensamblaje: AssemblyInstance de Revit
+
+    Returns:
+        lista de elementos miembro
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return [doc.GetElement(i) for i in ensamblaje.GetMemberIds()]
+
+
+# ── Planos de referencia y ejes ───────────────────────────────────────────────
+
+def crear_plano_referencia(punto1_xyz, punto2_xyz, nombre=None):
+    """
+    Crea un ReferencePlane entre dos puntos en la vista activa.
+
+    Args:
+        punto1_xyz: XYZ primer punto de definicion
+        punto2_xyz: XYZ segundo punto de definicion
+        nombre: nombre del plano de referencia (opcional)
+
+    Returns:
+        ReferencePlane creado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    plano = doc.Create.NewReferencePlane(
+        punto1_xyz, punto2_xyz,
+        XYZ(0, 0, 1), doc.ActiveView)
+    if nombre:
+        try:
+            plano.Name = nombre
+        except Exception:
+            pass
+    TransactionManager.Instance.TransactionTaskDone()
+    return plano
+
+
+def crear_eje(punto1_xyz, punto2_xyz, nombre=None):
+    """
+    Crea un Grid (eje de proyecto) entre dos puntos.
+
+    Args:
+        punto1_xyz: XYZ punto inicial del eje
+        punto2_xyz: XYZ punto final del eje
+        nombre: nombre del eje (opcional)
+
+    Returns:
+        Grid creado
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    linea = Line.CreateBound(punto1_xyz, punto2_xyz)
+    TransactionManager.Instance.EnsureInTransaction(doc)
+    eje = Grid.Create(doc, linea)
+    if nombre:
+        try:
+            eje.Name = nombre
+        except Exception:
+            pass
+    TransactionManager.Instance.TransactionTaskDone()
+    return eje
+
+
+def obtener_ejes():
+    """
+    Retorna todos los Grid del documento.
+
+    Args:
+        (ninguno)
+
+    Returns:
+        lista de Grid
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return list(
+        FilteredElementCollector(doc).OfClass(Grid).ToElements()
+    )
+
+
+def obtener_planos_referencia():
+    """
+    Retorna todos los ReferencePlane del documento.
+
+    Args:
+        (ninguno)
+
+    Returns:
+        lista de ReferencePlane
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return list(
+        FilteredElementCollector(doc)
+        .OfClass(ReferencePlane).ToElements()
+    )

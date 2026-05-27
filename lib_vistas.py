@@ -39,7 +39,12 @@ from Autodesk.Revit.DB import (  # noqa: E402
     ImageFileType, ExportRange, UnitUtils, UnitTypeId,
     ParameterFilterElement, ParameterFilterRuleFactory,
     ElementParameterFilter,
-    LogicalOrFilter, LogicalAndFilter, ElementFilter
+    LogicalOrFilter, LogicalAndFilter, ElementFilter,
+    ViewSchedule, ScheduleFieldType, ScheduleSortGroupField,
+    ScheduleSortOrder, SectionType,
+    TextNote, TextNoteOptions, TextNoteType, HorizontalTextAlignment,
+    IndependentTag, TagMode, TagOrientation,
+    FilledRegion, FilledRegionType
 )
 from RevitServices.Persistence import DocumentManager  # noqa: E402
 from RevitServices.Transactions import TransactionManager  # noqa: E402
@@ -1452,7 +1457,7 @@ def exportar_vistas_a_imagen(vistas, ruta_base, formato=None):
     return ruta_base
 
 
-# ── Filtros de vista (ParameterFilterElement) ─────────────────────────────────
+# ── Filtros de vista (ParameterFilterElement) ────────────────────────────────
 
 def _cat_ids_net(categorias_bic):
     from System.Collections.Generic import List as NetList  # noqa: E402
@@ -1656,3 +1661,267 @@ def obtener_filtros_del_documento():
         .OfClass(ParameterFilterElement)
         .ToElements()
     )
+
+
+# ── Planificaciones (Schedules) ───────────────────────────────────────────────
+
+def crear_planificacion(categoria_bic, nombre, parametros_bip=None):
+    """
+    Crea una ViewSchedule para la categoria indicada y añade los campos.
+
+    Args:
+        categoria_bic: BuiltInCategory de la planificacion
+        nombre: nombre de la planificacion
+        parametros_bip: lista de BuiltInParameter a añadir (opcional)
+
+    Returns:
+        ViewSchedule creada
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    _iniciar()
+    planif = ViewSchedule.CreateSchedule(doc, ElementId(categoria_bic))
+    try:
+        planif.Name = nombre
+    except Exception:
+        pass
+    if parametros_bip:
+        defn = planif.Definition
+        for bip in parametros_bip:
+            try:
+                defn.AddField(
+                    ScheduleFieldType.Instance, ElementId(bip))
+            except Exception:
+                pass
+    _finalizar()
+    return planif
+
+
+def anadir_campo_a_planificacion(planificacion, param_bip,
+                                  tipo=None):
+    """
+    Añade un campo a una planificacion existente.
+
+    Args:
+        planificacion: ViewSchedule de Revit
+        param_bip: BuiltInParameter del campo a añadir
+        tipo: ScheduleFieldType (por defecto ScheduleFieldType.Instance)
+
+    Returns:
+        ScheduleField añadido, o None si falla
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if tipo is None:
+        tipo = ScheduleFieldType.Instance
+    _iniciar()
+    try:
+        campo = planificacion.Definition.AddField(
+            tipo, ElementId(param_bip))
+        _finalizar()
+        return campo
+    except Exception:
+        _finalizar()
+        return None
+
+
+def ordenar_planificacion_por_campo(planificacion, campo,
+                                     ascendente=True):
+    """
+    Ordena una planificacion por el ScheduleField indicado.
+
+    Args:
+        planificacion: ViewSchedule de Revit
+        campo: ScheduleField obtenido al añadir el campo
+        ascendente: True para orden ascendente (por defecto)
+
+    Returns:
+        None
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    orden = (ScheduleSortOrder.Ascending
+             if ascendente else ScheduleSortOrder.Descending)
+    sgf = ScheduleSortGroupField(campo.FieldId, orden)
+    _iniciar()
+    planificacion.Definition.AddSortGroupField(sgf)
+    _finalizar()
+
+
+def obtener_datos_de_planificacion(planificacion):
+    """
+    Lee el contenido de una planificacion como lista de dicts.
+    La primera fila se usa como cabecera de columna.
+
+    Args:
+        planificacion: ViewSchedule de Revit
+
+    Returns:
+        lista de dicts {nombre_columna: valor} por cada fila de datos
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    datos = planificacion.GetTableData()
+    seccion = datos.GetSectionData(SectionType.Body)
+    nfilas = seccion.NumberOfRows
+    ncols = seccion.NumberOfColumns
+    if nfilas < 2:
+        return []
+    cabeceras = [
+        planificacion.GetCellText(SectionType.Body, 0, c)
+        for c in range(ncols)
+    ]
+    resultado = []
+    for r in range(1, nfilas):
+        fila = {}
+        for c in range(ncols):
+            fila[cabeceras[c]] = planificacion.GetCellText(
+                SectionType.Body, r, c)
+        resultado.append(fila)
+    return resultado
+
+
+def obtener_planificaciones():
+    """
+    Retorna todas las ViewSchedule del documento (excluye claves).
+
+    Args:
+        (ninguno)
+
+    Returns:
+        lista de ViewSchedule
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    return [
+        v for v in
+        FilteredElementCollector(doc).OfClass(ViewSchedule).ToElements()
+        if not v.IsKeySchedule and not v.IsTitleblockRevisionSchedule
+    ]
+
+
+# ── Anotaciones de vista ──────────────────────────────────────────────────────
+
+def crear_nota_de_texto(vista, posicion_xyz, texto, tipo_id=None):
+    """
+    Crea una TextNote en la vista indicada.
+
+    Args:
+        vista: View de Revit
+        posicion_xyz: XYZ de posicion de la nota
+        texto: contenido de texto
+        tipo_id: ElementId del tipo TextNoteType (opcional; usa el
+            primero disponible si es None)
+
+    Returns:
+        TextNote creada
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if tipo_id is None:
+        tipos = list(
+            FilteredElementCollector(doc)
+            .OfClass(TextNoteType).ToElements()
+        )
+        tipo_id = tipos[0].Id if tipos else ElementId.InvalidElementId
+    opciones = TextNoteOptions(tipo_id)
+    opciones.HorizontalAlignment = HorizontalTextAlignment.Left
+    _iniciar()
+    nota = TextNote.Create(
+        doc, vista.Id, posicion_xyz, texto, opciones)
+    _finalizar()
+    return nota
+
+
+def etiquetar_elemento(vista, referencia, posicion_xyz,
+                        modo=None, orientacion=None,
+                        con_lider=False):
+    """
+    Crea un IndependentTag para el elemento referenciado en la vista.
+
+    Args:
+        vista: View de Revit
+        referencia: Reference del elemento a etiquetar
+        posicion_xyz: XYZ de posicion de la etiqueta
+        modo: TagMode (por defecto TagMode.TM_ADDBY_CATEGORY)
+        orientacion: TagOrientation (por defecto TagOrientation.Horizontal)
+        con_lider: True para añadir linea de referencia
+
+    Returns:
+        IndependentTag creada
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if modo is None:
+        modo = TagMode.TM_ADDBY_CATEGORY
+    if orientacion is None:
+        orientacion = TagOrientation.Horizontal
+    _iniciar()
+    etiqueta = IndependentTag.Create(
+        doc, vista.Id, referencia, con_lider, modo,
+        orientacion, posicion_xyz)
+    _finalizar()
+    return etiqueta
+
+
+def etiquetar_lista_de_elementos(
+        vista, pares_ref_pos, modo=None, con_lider=False):
+    """
+    Etiqueta una lista de elementos en bloque dentro de una transaccion.
+
+    Args:
+        vista: View de Revit
+        pares_ref_pos: lista de tuplas (Reference, XYZ_posicion)
+        modo: TagMode (por defecto TagMode.TM_ADDBY_CATEGORY)
+        con_lider: True para añadir linea de referencia
+
+    Returns:
+        lista de IndependentTag creadas
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    if modo is None:
+        modo = TagMode.TM_ADDBY_CATEGORY
+    resultado = []
+    _iniciar()
+    for ref, pos in pares_ref_pos:
+        try:
+            t = IndependentTag.Create(
+                doc, vista.Id, ref, con_lider, modo,
+                TagOrientation.Horizontal, pos)
+            resultado.append(t)
+        except Exception:
+            pass
+    _finalizar()
+    return resultado
+
+
+# ── Elementos de redaccion ────────────────────────────────────────────────────
+
+def crear_region_rellena(vista, bucles_curvas, tipo_id=None):
+    """
+    Crea una FilledRegion en la vista a partir de una lista de CurveLoop.
+
+    Args:
+        vista: View de Revit
+        bucles_curvas: lista de CurveLoop que definen el contorno
+        tipo_id: ElementId del FilledRegionType (opcional; usa el primero
+            disponible si es None)
+
+    Returns:
+        FilledRegion creada
+
+    Revit: 2024-2026 | IronPython 2.7 + CPython 3.x
+    """
+    from System.Collections.Generic import List as NetList  # noqa: E402
+    if tipo_id is None:
+        tipos = list(
+            FilteredElementCollector(doc)
+            .OfClass(FilledRegionType).ToElements()
+        )
+        tipo_id = tipos[0].Id if tipos else ElementId.InvalidElementId
+    loops = NetList[CurveLoop](bucles_curvas)
+    _iniciar()
+    region = FilledRegion.Create(doc, tipo_id, vista.Id, loops)
+    _finalizar()
+    return region
