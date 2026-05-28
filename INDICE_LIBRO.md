@@ -532,11 +532,29 @@ lib_transformaciones.mover_elemento(elem_host, vector)
 |---|---|
 | Detectar parámetros compartidos (IsShared) | `lib_general.obtener_todos_parametros(elem)` |
 | Iterar parámetros del proyecto | `lib_general.obtener_todos_parametros(elem)`, `lib_general.obtener_parametros_tipo(elem)` |
-| 6.1 Crear parámetro compartido (definición) | *(no implementado — candidato a lib_general.py)* |
-| 6.1 Crear fichero de definición (.txt) | *(no implementado — candidato a lib_general.py)* |
-| 6.1 Crear Binding (categoría + instancia/tipo) | *(no implementado — candidato a lib_general.py)* |
-| 6.1 Crear ParameterGroup | *(no implementado — candidato a lib_general.py)* |
-| 6.1 Insertar en proyecto (BindingMap) | *(no implementado — candidato a lib_general.py)* |
+| Ruta del archivo .txt activo | `lib_parametros.obtener_ruta_archivo_compartidos(app)` |
+| Apuntar / crear archivo .txt | `lib_parametros.establecer_archivo_compartidos(app, ruta)` |
+| Abrir DefinitionFile | `lib_parametros.abrir_archivo_compartidos(app)` |
+| Volcar contenido del .txt | `lib_parametros.listar_grupos_y_definiciones(def_file)` |
+| Crear grupo en el .txt | `lib_parametros.crear_grupo(def_file, nombre)` |
+| Obtener grupo del .txt | `lib_parametros.obtener_grupo(def_file, nombre)` |
+| Crear definición (genérico) | `lib_parametros.crear_definicion(grupo, nombre, SpecTypeId.*)` |
+| Crear definición Texto | `lib_parametros.crear_definicion_texto(grupo, nombre)` |
+| Crear definición Entero | `lib_parametros.crear_definicion_entero(grupo, nombre)` |
+| Crear definición Número | `lib_parametros.crear_definicion_numero(grupo, nombre)` |
+| Crear definición Longitud | `lib_parametros.crear_definicion_longitud(grupo, nombre)` |
+| Crear definición Área | `lib_parametros.crear_definicion_area(grupo, nombre)` |
+| Crear definición Sí/No | `lib_parametros.crear_definicion_si_no(grupo, nombre)` |
+| Vincular al proyecto (Insert en BindingMap) | `lib_parametros.vincular_a_proyecto(doc, app, defn, lista_bic)` |
+| Actualizar binding (cambiar categorías) | `lib_parametros.actualizar_vinculo_proyecto(doc, app, defn, lista_bic)` |
+| Desvincular del proyecto | `lib_parametros.desvincular_de_proyecto(doc, defn)` |
+| Consultar si está vinculado | `lib_parametros.esta_vinculado_proyecto(doc, defn)` |
+| Listar todos los compartidos del proyecto | `lib_parametros.obtener_parametros_compartidos_proyecto(doc)` |
+| Agregar compartido a familia | `lib_parametros.agregar_a_familia(doc, defn)` |
+| Quitar parámetro de familia | `lib_parametros.quitar_de_familia(doc, nombre)` |
+| Convertir local → compartido en familia | `lib_parametros.convertir_local_a_compartido(doc, nombre_local, defn)` |
+| Buscar por GUID | `lib_parametros.buscar_por_guid(doc, guid_str)` |
+| Flujo completo en una llamada | `lib_parametros.flujo_completo_compartido(app, doc, ruta, grupo, nombre, tipo, bics)` |
 
 ### 7. Parámetros de información del proyecto
 

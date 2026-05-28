@@ -811,11 +811,46 @@ Referencia cruzada entre cada sección del libro y las funciones de la bibliotec
 
 | Sección | Función / módulo |
 |---|---|
-| Crear parámetros (doc.FamilyManager.AddParameter + GroupTypeId + SpecTypeId) | `lib_familias.obtener_parametros_familia()` |
-| Buscar parámetros (paramByName — GetParameters + Definition.Name) | `lib_familias.obtener_parametros_familia()` |
+| Listar parámetros del FamilyManager | `lib_parametros.obtener_parametros_familia_manager(doc)` |
+| Crear parámetro local (AddParameter con GroupTypeId + SpecTypeId) | *(no implementado — candidato a lib_familias.py)* |
+| Buscar parámetros (paramByName — GetParameters + Definition.Name) | `lib_familias.obtener_parametros_familia(symbol)` |
+| Agregar parámetro compartido a familia | `lib_parametros.agregar_a_familia(doc, defn)` |
+| Quitar parámetro de familia | `lib_parametros.quitar_de_familia(doc, nombre)` |
+| Convertir parámetro local en compartido | `lib_parametros.convertir_local_a_compartido(doc, nombre_local, defn)` |
+| Renombrar parámetro local | `lib_parametros.renombrar_parametro_familia(doc, nombre_actual, nombre_nuevo)` |
 | Asignar fórmulas a parámetros (doc.FamilyManager.SetFormula) | *(no implementado — candidato a lib_familias.py)* |
 | Anidar parámetros a propiedades (AssociateElementParameterToFamilyParameter) | *(no implementado — candidato a lib_familias.py)* |
 | Aplicar parámetros a cota (cota.FamilyLabel = param) | *(no implementado — candidato a lib_familias.py)* |
+
+#### 1.4 Parámetros compartidos (Shared Parameters)
+
+| Sección | Función / módulo |
+|---|---|
+| Obtener ruta del .txt activo | `lib_parametros.obtener_ruta_archivo_compartidos(app)` |
+| Apuntar / crear el archivo .txt | `lib_parametros.establecer_archivo_compartidos(app, ruta)` |
+| Abrir DefinitionFile | `lib_parametros.abrir_archivo_compartidos(app)` |
+| Ver contenido completo del .txt | `lib_parametros.listar_grupos_y_definiciones(def_file)` |
+| Crear grupo en el .txt | `lib_parametros.crear_grupo(def_file, nombre)` |
+| Obtener grupo existente | `lib_parametros.obtener_grupo(def_file, nombre)` |
+| Crear definición Texto | `lib_parametros.crear_definicion_texto(grupo, nombre)` |
+| Crear definición Entero | `lib_parametros.crear_definicion_entero(grupo, nombre)` |
+| Crear definición Número | `lib_parametros.crear_definicion_numero(grupo, nombre)` |
+| Crear definición Longitud | `lib_parametros.crear_definicion_longitud(grupo, nombre)` |
+| Crear definición Área | `lib_parametros.crear_definicion_area(grupo, nombre)` |
+| Crear definición Sí/No | `lib_parametros.crear_definicion_si_no(grupo, nombre)` |
+| Crear definición (tipo genérico con SpecTypeId) | `lib_parametros.crear_definicion(grupo, nombre, SpecTypeId.*)` |
+| Vincular al proyecto (BindingMap.Insert) | `lib_parametros.vincular_a_proyecto(doc, app, defn, lista_bic)` |
+| Actualizar categorías de binding | `lib_parametros.actualizar_vinculo_proyecto(doc, app, defn, lista_bic)` |
+| Desvincular del proyecto | `lib_parametros.desvincular_de_proyecto(doc, defn)` |
+| Consultar si está vinculado | `lib_parametros.esta_vinculado_proyecto(doc, defn)` |
+| Listar todos los compartidos del proyecto | `lib_parametros.obtener_parametros_compartidos_proyecto(doc)` |
+| Buscar SharedParameterElement por GUID | `lib_parametros.buscar_por_guid(doc, guid_str)` |
+| Obtener GUID de un parámetro | `lib_parametros.guid_de_parametro(doc, nombre)` |
+| Flujo completo en una llamada | `lib_parametros.flujo_completo_compartido(app, doc, ruta, grupo, nombre, tipo, bics)` |
+
+> **Nota sobre borrado del .txt:** La Revit API no expone métodos para eliminar
+> un `DefinitionGroup` ni una `ExternalDefinition` del archivo. Para borrarlos
+> hay que editar el .txt manualmente o reemplazarlo por uno nuevo.
 
 ### 2. Matrices de Objetos
 
@@ -930,6 +965,7 @@ Referencia cruzada entre cada sección del libro y las funciones de la bibliotec
 | Proyecciones y análisis | Proyectar punto a plano (Plane.Project), ecuación del plano, BoundingBox girado | `lib_geometria.py` ampliar |
 | Puntos adaptativos | Toda la sección IV.2–IV.4 (ReferencePoint, PointLocationOnCurve, CurveByPoints) | `lib_familias.py` ampliar |
 | Formas en familias | NewExtrusion, NewRevolution, NewBlend, NewSweep, NewSweptBlend, NewExtrusionForm, NewLoftForm | `lib_familias.py` ampliar |
+| Parámetros compartidos | ✅ **IMPLEMENTADO** — gestión completa del .txt, grupos, definiciones, bindings proyecto/familia | `lib_parametros.py` (nuevo) |
 | Control de geometría | Cotas (NewLinearDimension, NewAngularDimension…), matrices (LinearArray, RadialArray), alineaciones | `lib_familias.py` ampliar |
 | Subdivisión adaptativa | DividedPath, DividedSurface, ComponentRepeater, AdaptiveComponentInstanceUtils | `lib_familias.py` ampliar |
 | Entorno de proyecto | FaceWall, Masa conceptual API, sistemas de muro cortina | `lib_arquitectura.py` ampliar |
