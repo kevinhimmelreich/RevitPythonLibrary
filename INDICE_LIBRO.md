@@ -363,12 +363,123 @@ y las funciones de la biblioteca RevitPythonLibrary.
 | doc.Delete(id) | `lib_transacciones.eliminar_elemento_en_subtransaccion()` |
 | Eliminar lista de elementos | Patrón usado en `lib_familias.eliminar_familias_no_usadas()` |
 
-### 3. Copiar y mover
+### 3. Mover elementos (`lib_transformaciones`)
 
-| Sección | Función / módulo |
+| Sección / operación | Función |
 |---|---|
-| ElementTransformUtils.CopyElement | `lib_transformaciones.copiar_elemento()`, `lib_transformaciones.copiar_elementos()` |
-| ElementTransformUtils.MoveElement | `lib_transformaciones.mover_elemento()`, `lib_transformaciones.mover_elementos()` |
+| Mover por vector XYZ (pies internos) | `lib_transformaciones.mover_elemento(elem, vector_xyz)` |
+| Mover por desplazamiento en metros | `lib_transformaciones.mover_elemento_m(elem, dx_m, dy_m, dz_m)` |
+| Mover varios elementos en bloque | `lib_transformaciones.mover_elementos(lista_elems, vector_xyz)` |
+| Mover a posición absoluta (LocationPoint) | `lib_transformaciones.establecer_punto_ubicacion(elem, punto_xyz)` |
+| Redefinir curva de ubicación (muro, viga…) | `lib_transformaciones.establecer_curva_ubicacion(elem, curva)` |
+| Alinear elemento a punto destino | `lib_transformaciones.alinear_a_punto(elem, punto_destino_xyz)` |
+| Obtener ubicación (punto o curva) | `lib_transformaciones.obtener_ubicacion(elem)` |
+| Obtener punto de ubicación | `lib_transformaciones.obtener_punto_ubicacion(elem)` |
+| Obtener curva de ubicación | `lib_transformaciones.obtener_curva_ubicacion(elem)` |
+| Calcular vector entre dos puntos | `lib_transformaciones.vector_entre_puntos(origen, destino)` |
+| Distancia entre dos puntos (metros) | `lib_transformaciones.distancia_entre_puntos_m(pto_a, pto_b)` |
+| Centroide del BoundingBox de un elemento | `lib_transformaciones.centroide_bbox(elem)` |
+
+### 4. Copiar elementos (`lib_transformaciones`)
+
+| Sección / operación | Función |
+|---|---|
+| Copiar un elemento por vector | `lib_transformaciones.copiar_elemento(elem, vector_xyz)` |
+| Copiar varios elementos por vector | `lib_transformaciones.copiar_elementos(lista_elems, vector_xyz)` |
+| Copiar elemento a otro nivel (ajusta Z) | `lib_transformaciones.copiar_elemento_a_nivel(elem, nivel_destino)` |
+| Copiar elementos entre documentos / links | `lib_transformaciones.copiar_elementos_entre_documentos(doc_origen, ids, doc_destino, transform)` |
+
+### 5. Rotar elementos (`lib_transformaciones`)
+
+| Sección / operación | Función |
+|---|---|
+| Rotar un elemento alrededor de eje + punto | `lib_transformaciones.rotar_elemento(elem, punto_xyz, angulo_grados, eje_xyz)` |
+| Rotar sobre su propio punto de ubicación | `lib_transformaciones.rotar_elemento_en_propio_punto(elem, angulo_grados, eje_xyz)` |
+| Rotar varios elementos a la vez | `lib_transformaciones.rotar_elementos(lista_elems, punto_xyz, angulo_grados, eje_xyz)` |
+| Rotar una vista (sección, alzado…) | `lib_transformaciones.rotar_vista(vista, punto_xyz, angulo_grados)` |
+| Leer ángulo de rotación actual (LocationPoint) | `lib_transformaciones.obtener_rotacion_ubicacion(elem)` |
+| Leer ángulo desde HandOrientation | `lib_transformaciones.obtener_angulo_desde_hand_orientation(elem)` |
+
+### 6. Espejar elementos (`lib_transformaciones`)
+
+| Sección / operación | Función |
+|---|---|
+| Espejar lista de elementos (con/sin copia) | `lib_transformaciones.espejar_elementos(lista_elems, normal_xyz, origen_xyz, crear_copia)` |
+| Espejar un elemento único | `lib_transformaciones.espejar_elemento(elem, normal_xyz, origen_xyz, crear_copia)` |
+| Crear plano de espejado (Plane) | `lib_transformaciones.crear_plano_espejo(normal_xyz, origen_xyz)` |
+
+### 7. Voltear / Flip (`lib_transformaciones`)
+
+| Sección / operación | Función |
+|---|---|
+| Flip principal del elemento (Flip()) | `lib_transformaciones.voltear_elemento(elem)` |
+| Flip de cara (FacingOrientation) | `lib_transformaciones.voltear_cara(instancia)` |
+| Flip de mano (HandOrientation) | `lib_transformaciones.voltear_mano(instancia)` |
+| Invertir extremos de viga estructural | `lib_transformaciones.voltear_extremos_viga(viga)` |
+| Consultar si cara está volteada | `lib_transformaciones.obtener_esta_volteado_cara(instancia)` |
+| Consultar si mano está volteada | `lib_transformaciones.obtener_esta_volteado_mano(instancia)` |
+| Consultar si está espejado (Mirrored) | `lib_transformaciones.obtener_esta_espejado(instancia)` |
+
+### 8. Anclar / Desanclar (`lib_transformaciones`)
+
+| Sección / operación | Función |
+|---|---|
+| Anclar un elemento (Pinned = True) | `lib_transformaciones.anclar_elemento(elem, anclar=True)` |
+| Desanclar un elemento | `lib_transformaciones.desanclar_elemento(elem)` |
+| Anclar / desanclar lista en bloque | `lib_transformaciones.anclar_lista(lista_elems, anclar)` |
+| Consultar si está anclado | `lib_transformaciones.esta_anclado(elem)` |
+
+### 9. Orientación de elementos (`lib_transformaciones`)
+
+| Sección / operación | Función |
+|---|---|
+| HandOrientation (dirección de mano) | `lib_transformaciones.obtener_orientacion_mano(elem)` |
+| FacingOrientation (dirección de cara) | `lib_transformaciones.obtener_orientacion_cara(elem)` |
+| Resumen completo de orientación | `lib_transformaciones.obtener_orientacion_completa(instancia)` |
+
+### 10. Matemática de Transform (`lib_transformaciones`)
+
+> Transform es el objeto de Revit que describe cómo pasar de un sistema de
+> coordenadas a otro. Se usa especialmente para convertir puntos/vectores entre
+> un modelo vinculado y el modelo activo.
+
+| Sección / operación | Función |
+|---|---|
+| Transform de traslación pura | `lib_transformaciones.crear_transform_traslacion(vector_xyz)` |
+| Transform de rotación (eje + ángulo) | `lib_transformaciones.crear_transform_rotacion(eje_xyz, angulo_grados)` |
+| Transform por origen y ejes locales | `lib_transformaciones.crear_transform_por_ejes(origen, eje_x, eje_y, eje_z)` |
+| Aplicar Transform a un punto XYZ | `lib_transformaciones.transformar_punto(transform, punto_xyz)` |
+| Aplicar Transform a un vector XYZ | `lib_transformaciones.transformar_vector(transform, vector_xyz)` |
+| Invertir un Transform | `lib_transformaciones.invertir_transform(transform)` |
+| Combinar dos Transform en secuencia | `lib_transformaciones.combinar_transforms(t_a, t_b)` |
+| Obtener Transform de una FamilyInstance | `lib_transformaciones.obtener_transform_elemento(instancia)` |
+| Transform.Identity (sin transformación) | `Transform.Identity` — disponible tras `from Autodesk.Revit.DB import Transform` |
+
+#### Workflow: Transformaciones entre link y modelo activo en Dynamo
+
+```
+# 1. Obtener la instancia del link
+link_inst = lib_coordinacion.obtener_links_revit()[0]
+
+# 2. Obtener el Transform que lleva coordenadas del link → coordenadas del host
+tf = link_inst.GetTotalTransform()
+
+# 3. Convertir un punto del link al espacio del modelo activo
+punto_link = lib_transformaciones.obtener_punto_ubicacion(elem_en_link)
+punto_host = lib_transformaciones.transformar_punto(tf, punto_link)
+
+# 4. Copiar elementos del link al modelo activo con posición correcta
+doc_link   = link_inst.GetLinkDocument()
+ids_link   = [e.Id for e in lista_elems_del_link]
+copiados   = lib_transformaciones.copiar_elementos_entre_documentos(
+                 doc_link, ids_link, doc, tf)
+
+# 5. Mover un elemento del host para alinearlo con una posición del link
+vector = lib_transformaciones.vector_entre_puntos(
+             lib_transformaciones.obtener_punto_ubicacion(elem_host),
+             punto_host)
+lib_transformaciones.mover_elemento(elem_host, vector)
+```
 
 ---
 
@@ -1039,19 +1150,15 @@ y las funciones de la biblioteca RevitPythonLibrary.
 | 4.2 Tipos de vínculos — descargar | *(no implementado — candidato a lib_coordinacion.py)* |
 | 4.3 Adquirir coordenadas de link | `lib_coordinacion.adquirir_coordenadas_de_link()` |
 | 4.3 Instancias de vínculos (RevitLinkInstance) | `lib_coordinacion.obtener_elementos_en_link()` |
-| 4.4 Transformaciones de vínculos (Transform) | `lib_transformaciones.obtener_transform_elemento()` |
-| 4.4 Clase Transform — traslación | `lib_transformaciones.crear_transform_traslacion()` |
-| 4.4 Clase Transform — rotación | `lib_transformaciones.crear_transform_rotacion()` |
-| 4.4 Clase Transform — por ejes | `lib_transformaciones.crear_transform_por_ejes()` |
-| 4.4 Clase Transform — transformar punto | `lib_transformaciones.transformar_punto()` |
-| 4.4 Clase Transform — invertir | `lib_transformaciones.invertir_transform()` |
-| 4.4 Clase Transform — combinar | `lib_transformaciones.combinar_transforms()` |
+| 4.4 Transform de vínculo (GetTotalTransform) | `link_inst.GetTotalTransform()` — ver **workflow completo en cap. v.10** |
+| 4.4 Clase Transform — todas las operaciones | Ver **cap. v.10** — `lib_transformaciones.crear_transform_traslacion/rotacion/por_ejes`, `transformar_punto`, `invertir_transform`, `combinar_transforms` |
 | 4.5 Copiar elementos desde link | `lib_coordinacion.copiar_elementos_desde_link()` |
-| 4.5 Copiar entre documentos | `lib_transformaciones.copiar_elementos_entre_documentos()` |
-| 4.5 Mover elementos | `lib_transformaciones.mover_elemento()`, `lib_transformaciones.mover_elementos()` |
-| 4.5 Copiar elementos | `lib_transformaciones.copiar_elemento()`, `lib_transformaciones.copiar_elementos()` |
-| 4.5 Simetría (Mirror) | `lib_transformaciones.espejar_elementos()`, `lib_transformaciones.espejar_elemento()` |
-| 4.5 Rotar elementos | `lib_transformaciones.rotar_elemento()`, `lib_transformaciones.rotar_elementos()` |
+| 4.5 Copiar entre documentos con Transform | `lib_transformaciones.copiar_elementos_entre_documentos(doc_link, ids, doc, tf)` |
+| 4.5 Mover elementos (vector o punto absoluto) | Ver **cap. v.3** — `lib_transformaciones.mover_elemento/mover_elemento_m/mover_elementos/alinear_a_punto` |
+| 4.5 Copiar elementos (vector o nivel) | Ver **cap. v.4** — `lib_transformaciones.copiar_elemento/copiar_elementos/copiar_elemento_a_nivel` |
+| 4.5 Rotar elementos | Ver **cap. v.5** — `lib_transformaciones.rotar_elemento/rotar_elemento_en_propio_punto/rotar_elementos` |
+| 4.5 Simetría (Mirror) | Ver **cap. v.6** — `lib_transformaciones.espejar_elemento/espejar_elementos` |
+| 4.5 Voltear cara/mano/extremos | Ver **cap. v.7** — `lib_transformaciones.voltear_cara/voltear_mano/voltear_extremos_viga` |
 | 4.7 Archivos AutoCAD — clasificar links | `lib_cad.clasificar_links_cad()` |
 | 4.7 AutoCAD — obtener capas | `lib_cad.obtener_nombres_capas_cad()` |
 | 4.7 AutoCAD — curvas por capa | `lib_cad.obtener_curvas_por_capa()` |
