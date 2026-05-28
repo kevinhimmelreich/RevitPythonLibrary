@@ -507,16 +507,22 @@ lib_transformaciones.mover_elemento(elem_host, vector)
 
 | Sección | Función / módulo |
 |---|---|
-| Obtener parámetros globales del proyecto | `lib_general.obtener_valor_parametro()` con parámetros BuiltIn |
-| Crear parámetro global | *(no implementado — candidato a lib_general.py)* |
-| Enlazar parámetro a elemento | *(no implementado — candidato a lib_general.py)* |
+| Listar todos los GlobalParameter del proyecto | `lib_parametros.listar_parametros_globales(doc)` |
+| Crear GlobalParameter | `lib_parametros.crear_parametro_global(doc, nombre, SpecTypeId.*)` |
+| Obtener GlobalParameter por nombre | `lib_parametros.obtener_parametro_global(doc, nombre)` |
+| Leer valor de GlobalParameter | `lib_parametros.obtener_valor_global(gp)` |
+| Escribir valor de GlobalParameter | `lib_parametros.establecer_valor_global(gp, valor)` |
+| Eliminar GlobalParameter | `lib_parametros.eliminar_parametro_global(doc, nombre)` |
+| Asociar parámetro de elemento a GlobalParameter | `lib_parametros.asociar_elemento_a_global(doc, elem, nombre_param, gp)` |
+| Desasociar parámetro de GlobalParameter | `lib_parametros.desasociar_elemento_de_global(doc, elem, nombre_param)` |
+| Consultar si está asociado a GlobalParameter | `lib_parametros.esta_asociado_a_global(elem, nombre_param)` |
 
 ### 4. Parámetros de grupo (Group Parameters)
 
 | Sección | Función / módulo |
 |---|---|
-| Obtener parámetros de grupo | *(no implementado — candidato a lib_general.py)* |
-| Grupos de parámetros (BuiltInParameterGroup) | *(conceptual — ver Revit API docs)* |
+| Grupos de parámetros (GroupTypeId.*) | `GroupTypeId.Data`, `GroupTypeId.Dimensions`, `GroupTypeId.Text`, etc. — usados en `lib_parametros.vincular_a_proyecto()`, `lib_parametros.agregar_a_familia()` |
+| Grupos al crear definición | `lib_parametros.crear_definicion(grupo, nombre, tipo, grupo_param=GroupTypeId.*)` |
 
 ### 5. BuiltInParameters (BIP)
 
@@ -568,18 +574,46 @@ lib_transformaciones.mover_elemento(elem_host, vector)
 
 | Sección | Función / módulo |
 |---|---|
-| FamilyManager — acceso | `lib_familias.obtener_parametros_familia(symbol)` |
-| Insertar parámetros en familias | `lib_familias.obtener_parametros_familia()` |
-| Obtener todos los parámetros de familia | `lib_familias.obtener_parametros_familia(symbol)` |
-| Crear un tipo de familia | `lib_familias.activar_tipo_familia()` |
-| Eliminar parámetros | *(no implementado — candidato a lib_familias.py)* |
+| Listar parámetros del FamilyManager | `lib_parametros.obtener_parametros_familia_manager(doc)` |
+| Crear parámetro local (no compartido) | `lib_parametros.crear_parametro_local_familia(doc, nombre, SpecTypeId.*)` |
+| Eliminar parámetro local | `lib_parametros.eliminar_parametro_local_familia(doc, nombre)` |
+| Agregar parámetro compartido | `lib_parametros.agregar_a_familia(doc, defn)` |
+| Quitar parámetro compartido | `lib_parametros.quitar_de_familia(doc, nombre)` |
+| Renombrar parámetro local | `lib_parametros.renombrar_parametro_familia(doc, nombre_actual, nombre_nuevo)` |
+| Convertir local → compartido | `lib_parametros.convertir_local_a_compartido(doc, nombre_local, defn)` |
+| Listar tipos de familia y sus valores | `lib_parametros.obtener_tipos_familia_manager(doc)` |
+| Crear tipo de familia | `lib_parametros.crear_tipo_familia(doc, nombre_tipo)` |
+| Duplicar tipo de familia | `lib_parametros.duplicar_tipo_familia(doc, nombre_origen, nombre_nuevo)` |
+| Renombrar tipo de familia | `lib_parametros.renombrar_tipo_familia(doc, nombre_actual, nombre_nuevo)` |
+| Eliminar tipo de familia | `lib_parametros.eliminar_tipo_familia(doc, nombre_tipo)` |
+| Activar tipo en el FamilyManager | `lib_parametros.activar_tipo_familia_manager(doc, nombre_tipo)` |
+| Obtener tipo activo | `lib_parametros.obtener_tipo_activo_familia_manager(doc)` |
+| Establecer valor de parámetro en un tipo | `lib_parametros.establecer_valor_en_tipo(doc, nombre_tipo, nombre_param, valor)` |
 
 ### 8.1 Fórmulas de parámetros
 
 | Sección | Función / módulo |
 |---|---|
-| Asignar fórmula a parámetro | *(no implementado — candidato a lib_familias.py)* |
-| Leer fórmula de parámetro | *(no implementado — candidato a lib_familias.py)* |
+| Asignar fórmula a parámetro | `lib_parametros.establecer_formula_parametro(doc, nombre, formula)` |
+| Leer fórmula de parámetro | `lib_parametros.leer_formula_parametro(doc, nombre)` |
+| Borrar fórmula (dejar valor libre) | `lib_parametros.borrar_formula_parametro(doc, nombre)` |
+| Listar todos los parámetros con fórmula | `lib_parametros.listar_parametros_con_formula(doc)` |
+
+### 8.2 Anidar parámetros
+
+| Sección | Función / módulo |
+|---|---|
+| Asociar parámetro de instancia anidada a FamilyParameter padre | `lib_parametros.anidar_parametro(doc, instancia_anidada, nombre_param_inst, nombre_param_familia)` |
+| Desasociar parámetro anidado | `lib_parametros.desanidar_parametro(doc, instancia_anidada, nombre_param_inst)` |
+| Listar parámetros anidados de una instancia | `lib_parametros.obtener_parametros_anidados(doc, instancia_anidada)` |
+
+### 8.3 Cotas y FamilyLabel
+
+| Sección | Función / módulo |
+|---|---|
+| Asignar parámetro a cota (cota.FamilyLabel) | `lib_parametros.asignar_parametro_a_cota(doc, cota, nombre_param)` |
+| Quitar FamilyLabel de una cota | `lib_parametros.quitar_label_de_cota(cota)` |
+| Obtener parámetro asignado a una cota | `lib_parametros.obtener_label_de_cota(cota)` |
 
 ### 9. Unidades
 
@@ -595,17 +629,20 @@ lib_transformaciones.mover_elemento(elem_host, vector)
 
 | Sección | Función / módulo |
 |---|---|
-| ParameterUtils — nuevas utilidades | *(no implementado — candidato a lib_general.py)* |
-| ForgeTypeId para parámetros | *(conceptual — ver Revit 2022+ API docs)* |
+| ParameterUtils.AssociateElementParameterToGlobalParameter | `lib_parametros.asociar_elemento_a_global(doc, elem, nombre, gp)` |
+| ParameterUtils.IsParameterAssociatedWithGlobalParameter | `lib_parametros.esta_asociado_a_global(elem, nombre)` |
+| ForgeTypeId para parámetros (SpecTypeId.*) | Usado en `lib_parametros.crear_definicion()`, `lib_parametros.crear_parametro_global()`, `lib_parametros.crear_parametro_local_familia()` |
 
 ### 11. Almacenamiento extendido (ExtensibleStorage)
 
 | Sección | Función / módulo |
 |---|---|
-| 11.1 Crear esquema de datos (Schema) | *(no implementado — candidato a lib_bases_datos.py)* |
-| 11.1 Escribir datos en elemento | `lib_bases_datos.guardar_configuracion()` (alternativa JSON) |
-| 11.2 Leer datos de elemento | `lib_bases_datos.cargar_configuracion()` |
-| 11.2 Filtrar por ExtensibleStorage | *(no implementado — candidato a lib_bases_datos.py)* |
+| 11.1 Crear Schema (SchemaBuilder + guid + nombre) | `lib_parametros.crear_schema(guid_str, nombre)` |
+| 11.1 Añadir campo al Schema (AddSimpleField) | `lib_parametros.agregar_campo_schema(schema_builder, nombre, tipo_clr)` |
+| 11.1 Escribir datos en elemento (SetEntity) | `lib_parametros.escribir_datos_extensibles(elemento, schema, datos_dict)` |
+| 11.2 Leer datos de elemento (GetEntity) | `lib_parametros.leer_datos_extensibles(elemento, schema)` |
+| 11.2 Eliminar datos de elemento (DeleteEntity) | `lib_parametros.eliminar_datos_extensibles(elemento, schema)` |
+| 11.2 Verificar si tiene datos del schema | `lib_parametros.tiene_datos_extensibles(elemento, schema)` |
 
 ---
 

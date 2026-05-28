@@ -1,17 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-lib_parametros.py — Gestión de parámetros compartidos en Revit
+lib_parametros.py — Gestión completa de parámetros en Revit
 
-Cubre el ciclo completo:
-  1. Archivo .txt  →  establecer ruta, abrir, volcar contenido
-  2. Grupos        →  listar, obtener, crear
-  3. Definiciones  →  listar, obtener, crear (por tipo de dato)
-  4. Proyecto      →  vincular / actualizar / desvincular / consultar
-  5. Familias      →  agregar, quitar, listar, convertir de local a compartido
-  6. Utilidades    →  buscar por GUID, listar todo
+Bloques:
+  1. Archivo .txt (parámetros compartidos) — ruta, abrir, contenido
+  2. Grupos en el .txt                     — listar, obtener, crear
+  3. Definiciones en el .txt               — listar, obtener, crear por tipo
+  4. Vincular compartidos al proyecto      — insert / update / remove / query
+  5. Parámetros compartidos en familias    — agregar, quitar, convertir
+  6. Parámetros locales en FamilyManager   — crear, eliminar
+  7. Fórmulas en FamilyManager            — asignar, leer, borrar
+  8. Anidar parámetros                    — AssociateElementParameterToFamilyParameter
+  9. Cotas y FamilyLabel                  — asignar parámetro a cota
+ 10. Tipos de familia (FamilyManager)      — crear, duplicar, renombrar, eliminar
+ 11. Parámetros globales de proyecto       — crear, listar, valor, asociar, eliminar
+ 12. ExtensibleStorage                    — Schema, Entity, leer/escribir/eliminar
+ 13. Utilidades generales                  — GUID, buscar, listar
 
-Requiere Revit 2022+ (usa SpecTypeId / GroupTypeId en lugar de los enums
-deprecados ParameterType / BuiltInParameterGroup).
+Requiere Revit 2022+ (usa SpecTypeId / GroupTypeId).
 """
 import os
 import clr
@@ -26,6 +32,17 @@ from Autodesk.Revit.DB import (
     GroupTypeId,
     FilteredElementCollector,
     SharedParameterElement,
+    GlobalParameter,
+    DoubleParameterValue,
+    IntegerParameterValue,
+    StringParameterValue,
+    ElementIdParameterValue,
+    ParameterUtils,
+)
+from Autodesk.Revit.DB.ExtensibleStorage import (
+    SchemaBuilder,
+    AccessLevel,
+    Entity,
 )
 import System
 
@@ -477,3 +494,525 @@ def flujo_completo_compartido(app, doc, ruta_txt, nombre_grupo,
                             descripcion=descripcion)
     vincular_a_proyecto(doc, app, defn, lista_bic, es_instancia, grupo_param)
     return defn
+
+
+# =============================================================================
+#  6. PARÁMETROS LOCALES EN FAMILYMANAGER (no compartidos)
+# =============================================================================
+
+def crear_parametro_local_familia(doc, nombre, spec_type_id=None,
+                                   grupo_param=None, es_instancia=True):
+    """
+    Crea un parámetro local (no compartido) en la familia activa.
+
+    spec_type_id: ForgeTypeId de SpecTypeId (por defecto SpecTypeId.String.Text)
+    grupo_param : GroupTypeId (por defecto GroupTypeId.Data)
+    Devuelve el FamilyParameter creado, o None si ya existe.
+    """
+    if spec_type_id is None:
+        spec_type_id = SpecTypeId.String.Text
+    if grupo_param is None:
+        grupo_param = GroupTypeId.Data
+    fm = doc.FamilyManager
+    for fp in fm.GetParameters():
+        if fp.Definition.Name == nombre:
+            return fp
+    return fm.AddParameter(nombre, grupo_param, spec_type_id, es_instancia)
+
+
+def eliminar_parametro_local_familia(doc, nombre):
+    """
+    Elimina un parámetro local de la familia activa.
+    No funciona con parámetros compartidos (usa quitar_de_familia para esos).
+    Devuelve True si se eliminó.
+    """
+    fm = doc.FamilyManager
+    for fp in fm.GetParameters():
+        if fp.Definition.Name == nombre and not fp.IsShared:
+            fm.RemoveParameter(fp)
+            return True
+    return False
+
+
+def obtener_tipos_familia_manager(doc):
+    """
+    Lista todos los FamilyType del FamilyManager con sus parámetros y valores.
+
+    Devuelve lista de dicts: {nombre_tipo, parametros: {nombre: valor}}
+    """
+    fm = doc.FamilyManager
+    params = list(fm.GetParameters())
+    resultado = []
+    for ft in fm.Types:
+        vals = {}
+        for fp in params:
+            try:
+                p = ft.AsValueString(fp)
+                if p is None:
+                    p = ft.AsString(fp)
+                vals[fp.Definition.Name] = p
+            except Exception:
+                vals[fp.Definition.Name] = None
+        resultado.append({"nombre_tipo": ft.Name, "parametros": vals})
+    return resultado
+
+
+# =============================================================================
+#  7. FÓRMULAS EN FAMILYMANAGER
+# =============================================================================
+
+def establecer_formula_parametro(doc, nombre_param, formula):
+    """
+    Asigna una fórmula a un parámetro del FamilyManager.
+
+    formula: string con la fórmula, ej. "Ancho * 2" o "if(Alto > 1000 mm, 1, 0)"
+             Pasar None o "" para borrar la fórmula.
+    Devuelve True si se aplicó.
+    """
+    fm = doc.FamilyManager
+    for fp in fm.GetParameters():
+        if fp.Definition.Name == nombre_param:
+            fm.SetFormula(fp, formula if formula else None)
+            return True
+    return False
+
+
+def leer_formula_parametro(doc, nombre_param):
+    """
+    Devuelve la fórmula del parámetro como string, o None si no tiene fórmula.
+    """
+    fm = doc.FamilyManager
+    for fp in fm.GetParameters():
+        if fp.Definition.Name == nombre_param:
+            return fp.Formula
+    return None
+
+
+def borrar_formula_parametro(doc, nombre_param):
+    """
+    Elimina la fórmula de un parámetro (queda como valor libre).
+    Devuelve True si se eliminó.
+    """
+    return establecer_formula_parametro(doc, nombre_param, None)
+
+
+def listar_parametros_con_formula(doc):
+    """
+    Devuelve lista de dicts {nombre, formula} para todos los parámetros
+    del FamilyManager que tienen fórmula asignada.
+    """
+    fm = doc.FamilyManager
+    return [
+        {"nombre": fp.Definition.Name, "formula": fp.Formula}
+        for fp in fm.GetParameters()
+        if fp.Formula
+    ]
+
+
+# =============================================================================
+#  8. ANIDAR PARÁMETROS (AssociateElementParameterToFamilyParameter)
+# =============================================================================
+
+def anidar_parametro(doc, instancia_anidada, nombre_param_inst,
+                     nombre_param_familia):
+    """
+    Asocia el parámetro de una instancia de familia anidada al parámetro
+    del FamilyManager de la familia padre (Family Editor).
+
+    instancia_anidada  : FamilyInstance de la familia anidada
+    nombre_param_inst  : nombre del parámetro en la instancia anidada
+    nombre_param_familia: nombre del FamilyParameter en el FamilyManager padre
+
+    Devuelve True si se asoció correctamente.
+    """
+    fm = doc.FamilyManager
+    fp_padre = None
+    for fp in fm.GetParameters():
+        if fp.Definition.Name == nombre_param_familia:
+            fp_padre = fp
+            break
+    if fp_padre is None:
+        return False
+    param = instancia_anidada.LookupParameter(nombre_param_inst)
+    if param is None:
+        return False
+    fm.AssociateElementParameterToFamilyParameter(param, fp_padre)
+    return True
+
+
+def desanidar_parametro(doc, instancia_anidada, nombre_param_inst):
+    """
+    Elimina la asociación de un parámetro de instancia anidada con el
+    FamilyParameter padre. Lo deja como parámetro independiente.
+    Devuelve True si se desasocio.
+    """
+    param = instancia_anidada.LookupParameter(nombre_param_inst)
+    if param is None:
+        return False
+    doc.FamilyManager.DissociateElementParameterFromFamilyParameter(param)
+    return True
+
+
+def obtener_parametros_anidados(doc, instancia_anidada):
+    """
+    Lista los parámetros de la instancia anidada que están asociados
+    a algún FamilyParameter del padre.
+
+    Devuelve lista de dicts: {nombre_param_inst, nombre_param_familia}
+    """
+    fm = doc.FamilyManager
+    fp_por_id = {fp.Id: fp.Definition.Name for fp in fm.GetParameters()}
+    resultado = []
+    for param in instancia_anidada.Parameters:
+        if param.AssociatedFamilyParameter is not None:
+            afp = param.AssociatedFamilyParameter
+            resultado.append({
+                "nombre_param_inst": param.Definition.Name,
+                "nombre_param_familia": afp.Definition.Name,
+            })
+    return resultado
+
+
+# =============================================================================
+#  9. COTAS Y FAMILYLABEL
+# =============================================================================
+
+def asignar_parametro_a_cota(doc, cota, nombre_param):
+    """
+    Asigna un FamilyParameter del FamilyManager como label de una cota.
+
+    Esto crea la relación que permite controlar la geometría mediante el
+    parámetro: cuando el usuario cambia el parámetro, la cota (y la
+    geometría asociada) se actualiza.
+
+    cota       : objeto Dimension en el Family Editor
+    nombre_param: nombre del FamilyParameter
+    Devuelve True si se asignó.
+    """
+    fm = doc.FamilyManager
+    for fp in fm.GetParameters():
+        if fp.Definition.Name == nombre_param:
+            cota.FamilyLabel = fp
+            return True
+    return False
+
+
+def quitar_label_de_cota(cota):
+    """Elimina el FamilyLabel de una cota (queda como cota de referencia)."""
+    cota.FamilyLabel = None
+
+
+def obtener_label_de_cota(cota):
+    """Devuelve el nombre del FamilyParameter asignado a la cota, o None."""
+    if cota.FamilyLabel is not None:
+        return cota.FamilyLabel.Definition.Name
+    return None
+
+
+# =============================================================================
+# 10. TIPOS DE FAMILIA (FamilyManager)
+# =============================================================================
+
+def crear_tipo_familia(doc, nombre_tipo):
+    """
+    Crea un nuevo FamilyType en el FamilyManager activo.
+    Si ya existe lo devuelve sin duplicar.
+    Devuelve el FamilyType creado.
+    """
+    fm = doc.FamilyManager
+    for ft in fm.Types:
+        if ft.Name == nombre_tipo:
+            return ft
+    return fm.NewType(nombre_tipo)
+
+
+def eliminar_tipo_familia(doc, nombre_tipo):
+    """
+    Elimina un FamilyType del FamilyManager.
+    Devuelve True si se eliminó.
+    """
+    fm = doc.FamilyManager
+    for ft in fm.Types:
+        if ft.Name == nombre_tipo:
+            fm.DeleteCurrentType()
+            return True
+    return False
+
+
+def renombrar_tipo_familia(doc, nombre_actual, nombre_nuevo):
+    """
+    Renombra un FamilyType. Devuelve True si se renombró.
+    """
+    fm = doc.FamilyManager
+    for ft in fm.Types:
+        if ft.Name == nombre_actual:
+            fm.CurrentType = ft
+            fm.RenameCurrentType(nombre_nuevo)
+            return True
+    return False
+
+
+def duplicar_tipo_familia(doc, nombre_origen, nombre_nuevo):
+    """
+    Duplica un FamilyType con un nombre nuevo.
+    Devuelve el nuevo FamilyType.
+    """
+    fm = doc.FamilyManager
+    for ft in fm.Types:
+        if ft.Name == nombre_origen:
+            fm.CurrentType = ft
+            return fm.NewType(nombre_nuevo)
+    return None
+
+
+def activar_tipo_familia_manager(doc, nombre_tipo):
+    """
+    Establece el FamilyType activo en el FamilyManager.
+    Devuelve True si se activó.
+    """
+    fm = doc.FamilyManager
+    for ft in fm.Types:
+        if ft.Name == nombre_tipo:
+            fm.CurrentType = ft
+            return True
+    return False
+
+
+def obtener_tipo_activo_familia_manager(doc):
+    """Devuelve el nombre del FamilyType activo en el FamilyManager."""
+    ft = doc.FamilyManager.CurrentType
+    return ft.Name if ft is not None else None
+
+
+def establecer_valor_en_tipo(doc, nombre_tipo, nombre_param, valor):
+    """
+    Establece el valor de un parámetro en un FamilyType específico.
+    Activa el tipo, asigna el valor y restaura el tipo anterior.
+    """
+    fm = doc.FamilyManager
+    tipo_anterior = fm.CurrentType
+    activar_tipo_familia_manager(doc, nombre_tipo)
+    for fp in fm.GetParameters():
+        if fp.Definition.Name == nombre_param:
+            try:
+                if isinstance(valor, float):
+                    fm.Set(fp, valor)
+                elif isinstance(valor, int):
+                    fm.Set(fp, valor)
+                elif isinstance(valor, str):
+                    fm.Set(fp, valor)
+            except Exception:
+                pass
+            break
+    if tipo_anterior is not None:
+        fm.CurrentType = tipo_anterior
+
+
+# =============================================================================
+# 11. PARÁMETROS GLOBALES DE PROYECTO (GlobalParameter)
+# =============================================================================
+
+def crear_parametro_global(doc, nombre, spec_type_id=None):
+    """
+    Crea un GlobalParameter en el proyecto.
+
+    spec_type_id: ForgeTypeId de SpecTypeId (por defecto SpecTypeId.String.Text)
+    Devuelve el GlobalParameter creado, o el existente si ya hay uno con ese nombre.
+    """
+    if spec_type_id is None:
+        spec_type_id = SpecTypeId.String.Text
+    existente = obtener_parametro_global(doc, nombre)
+    if existente is not None:
+        return existente
+    return GlobalParameter.Create(doc, nombre, spec_type_id)
+
+
+def obtener_parametros_globales(doc):
+    """
+    Devuelve lista de todos los GlobalParameter del proyecto.
+    """
+    ids = GlobalParameter.GetAllGlobalParameters(doc)
+    return [doc.GetElement(eid) for eid in ids]
+
+
+def obtener_parametro_global(doc, nombre):
+    """Devuelve el GlobalParameter con ese nombre, o None."""
+    for eid in GlobalParameter.GetAllGlobalParameters(doc):
+        gp = doc.GetElement(eid)
+        if gp.Name == nombre:
+            return gp
+    return None
+
+
+def establecer_valor_global(gp, valor):
+    """
+    Asigna el valor a un GlobalParameter.
+    Detecta automáticamente el tipo: str, float, int o ElementId.
+    """
+    if isinstance(valor, str):
+        gp.SetValue(StringParameterValue(valor))
+    elif isinstance(valor, float):
+        gp.SetValue(DoubleParameterValue(valor))
+    elif isinstance(valor, int):
+        gp.SetValue(IntegerParameterValue(valor))
+    else:
+        gp.SetValue(ElementIdParameterValue(valor))
+
+
+def obtener_valor_global(gp):
+    """
+    Lee el valor de un GlobalParameter como tipo Python nativo.
+    """
+    val = gp.GetValue()
+    if val is None:
+        return None
+    if hasattr(val, "Value"):
+        return val.Value
+    return val
+
+
+def eliminar_parametro_global(doc, nombre):
+    """
+    Elimina un GlobalParameter del proyecto por nombre.
+    Devuelve True si se eliminó.
+    """
+    gp = obtener_parametro_global(doc, nombre)
+    if gp is None:
+        return False
+    doc.Delete(gp.Id)
+    return True
+
+
+def listar_parametros_globales(doc):
+    """
+    Lista todos los GlobalParameter del proyecto con nombre y valor.
+    Devuelve lista de dicts: {nombre, valor, spec_type}
+    """
+    resultado = []
+    for gp in obtener_parametros_globales(doc):
+        resultado.append({
+            "nombre": gp.Name,
+            "valor": obtener_valor_global(gp),
+            "spec_type": str(gp.GetDefinition().GetDataType()),
+        })
+    return resultado
+
+
+def asociar_elemento_a_global(doc, elemento, nombre_param, gp):
+    """
+    Asocia el parámetro de instancia de un elemento a un GlobalParameter
+    del proyecto (Revit 2022+, usa ParameterUtils).
+
+    elemento    : Element del proyecto
+    nombre_param: nombre del parámetro de instancia
+    gp          : GlobalParameter
+
+    Devuelve True si se asoció.
+    """
+    param = elemento.LookupParameter(nombre_param)
+    if param is None:
+        return False
+    return ParameterUtils.AssociateElementParameterToGlobalParameter(
+        doc, elemento.Id, param.Id, gp.Id
+    )
+
+
+def desasociar_elemento_de_global(doc, elemento, nombre_param):
+    """
+    Elimina la asociación entre el parámetro de instancia y cualquier
+    GlobalParameter. Devuelve True si se desasoció.
+    """
+    param = elemento.LookupParameter(nombre_param)
+    if param is None:
+        return False
+    return ParameterUtils.DissociateElementParameterFromGlobalParameter(
+        doc, elemento.Id, param.Id
+    )
+
+
+def esta_asociado_a_global(elemento, nombre_param):
+    """True si el parámetro está asociado a un GlobalParameter."""
+    param = elemento.LookupParameter(nombre_param)
+    if param is None:
+        return False
+    return ParameterUtils.IsParameterAssociatedWithGlobalParameter(param.Id)
+
+
+# =============================================================================
+# 12. EXTENSIBLE STORAGE (Schema + Entity)
+# =============================================================================
+
+def crear_schema(guid_str, nombre_schema, descripcion="",
+                 lectura_publica=True, escritura_propia=True):
+    """
+    Crea o recupera un Schema de ExtensibleStorage.
+
+    guid_str : GUID único del schema en formato '00000000-...'
+    Devuelve el Schema.
+    """
+    from Autodesk.Revit.DB.ExtensibleStorage import Schema
+    guid = System.Guid(guid_str)
+    schema = Schema.Lookup(guid)
+    if schema is not None:
+        return schema
+    sb = SchemaBuilder(guid)
+    sb.SetSchemaName(nombre_schema)
+    if descripcion:
+        sb.SetDocumentation(descripcion)
+    sb.SetReadAccessLevel(AccessLevel.Public if lectura_publica else AccessLevel.Vendor)
+    sb.SetWriteAccessLevel(AccessLevel.Application if escritura_propia else AccessLevel.Public)
+    return sb.Finish()
+
+
+def agregar_campo_schema(schema_builder, nombre_campo, tipo_clr):
+    """
+    Añade un campo simple al SchemaBuilder antes de llamar a Finish().
+
+    tipo_clr: tipo CLR, ej. System.String, System.Double, System.Int32
+    Devuelve el FieldBuilder.
+    """
+    return schema_builder.AddSimpleField(nombre_campo, tipo_clr)
+
+
+def escribir_datos_extensibles(elemento, schema, datos_dict):
+    """
+    Escribe datos en un elemento mediante ExtensibleStorage.
+
+    datos_dict: {nombre_campo: valor}  — los valores deben coincidir
+                con el tipo definido en el Schema.
+    """
+    entity = Entity(schema)
+    for nombre, valor in datos_dict.items():
+        field = schema.GetField(nombre)
+        if field is not None:
+            entity.Set(field, valor)
+    elemento.SetEntity(entity)
+
+
+def leer_datos_extensibles(elemento, schema):
+    """
+    Lee datos de ExtensibleStorage de un elemento.
+    Devuelve dict {nombre_campo: valor} o {} si no hay datos del schema.
+    """
+    entity = elemento.GetEntity(schema)
+    if not entity.IsValid():
+        return {}
+    resultado = {}
+    for field in schema.ListFields():
+        try:
+            resultado[field.FieldName] = entity.Get(field)
+        except Exception:
+            resultado[field.FieldName] = None
+    return resultado
+
+
+def eliminar_datos_extensibles(elemento, schema):
+    """
+    Elimina los datos de ExtensibleStorage de un elemento para el schema dado.
+    """
+    elemento.DeleteEntity(schema)
+
+
+def tiene_datos_extensibles(elemento, schema):
+    """True si el elemento tiene datos del schema indicado."""
+    return elemento.GetEntity(schema).IsValid()

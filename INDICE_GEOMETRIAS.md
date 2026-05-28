@@ -812,15 +812,27 @@ Referencia cruzada entre cada sección del libro y las funciones de la bibliotec
 | Sección | Función / módulo |
 |---|---|
 | Listar parámetros del FamilyManager | `lib_parametros.obtener_parametros_familia_manager(doc)` |
-| Crear parámetro local (AddParameter con GroupTypeId + SpecTypeId) | *(no implementado — candidato a lib_familias.py)* |
+| Crear parámetro local (AddParameter con GroupTypeId + SpecTypeId) | `lib_parametros.crear_parametro_local_familia(doc, nombre, SpecTypeId.*)` |
+| Eliminar parámetro local | `lib_parametros.eliminar_parametro_local_familia(doc, nombre)` |
 | Buscar parámetros (paramByName — GetParameters + Definition.Name) | `lib_familias.obtener_parametros_familia(symbol)` |
 | Agregar parámetro compartido a familia | `lib_parametros.agregar_a_familia(doc, defn)` |
 | Quitar parámetro de familia | `lib_parametros.quitar_de_familia(doc, nombre)` |
 | Convertir parámetro local en compartido | `lib_parametros.convertir_local_a_compartido(doc, nombre_local, defn)` |
 | Renombrar parámetro local | `lib_parametros.renombrar_parametro_familia(doc, nombre_actual, nombre_nuevo)` |
-| Asignar fórmulas a parámetros (doc.FamilyManager.SetFormula) | *(no implementado — candidato a lib_familias.py)* |
-| Anidar parámetros a propiedades (AssociateElementParameterToFamilyParameter) | *(no implementado — candidato a lib_familias.py)* |
-| Aplicar parámetros a cota (cota.FamilyLabel = param) | *(no implementado — candidato a lib_familias.py)* |
+| Asignar fórmula a parámetro (SetFormula) | `lib_parametros.establecer_formula_parametro(doc, nombre, formula)` |
+| Leer fórmula de parámetro | `lib_parametros.leer_formula_parametro(doc, nombre)` |
+| Borrar fórmula | `lib_parametros.borrar_formula_parametro(doc, nombre)` |
+| Listar parámetros con fórmula | `lib_parametros.listar_parametros_con_formula(doc)` |
+| Anidar parámetros (AssociateElementParameterToFamilyParameter) | `lib_parametros.anidar_parametro(doc, instancia_anidada, nombre_inst, nombre_padre)` |
+| Desanidar parámetro | `lib_parametros.desanidar_parametro(doc, instancia_anidada, nombre_inst)` |
+| Listar parámetros anidados | `lib_parametros.obtener_parametros_anidados(doc, instancia_anidada)` |
+| Aplicar parámetro a cota (cota.FamilyLabel) | `lib_parametros.asignar_parametro_a_cota(doc, cota, nombre_param)` |
+| Quitar FamilyLabel de cota | `lib_parametros.quitar_label_de_cota(cota)` |
+| Obtener FamilyLabel de cota | `lib_parametros.obtener_label_de_cota(cota)` |
+| Crear tipo de familia | `lib_parametros.crear_tipo_familia(doc, nombre_tipo)` |
+| Duplicar tipo de familia | `lib_parametros.duplicar_tipo_familia(doc, nombre_origen, nombre_nuevo)` |
+| Renombrar tipo de familia | `lib_parametros.renombrar_tipo_familia(doc, nombre_actual, nombre_nuevo)` |
+| Eliminar tipo de familia | `lib_parametros.eliminar_tipo_familia(doc, nombre_tipo)` |
 
 #### 1.4 Parámetros compartidos (Shared Parameters)
 
